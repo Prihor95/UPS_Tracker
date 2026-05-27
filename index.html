@@ -854,6 +854,7 @@ function addMaquina(){
   }
   maquinas.push(val);
   saveLocal();
+  publicarSettings();
   renderMaquinas();
   actualizarSelectMaquinas();
   inp.value='';
@@ -864,6 +865,7 @@ function removeMaquina(idx){
   const removed=maquinas[idx];
   maquinas.splice(idx,1);
   saveLocal();
+  publicarSettings();
   renderMaquinas();
   actualizarSelectMaquinas();
   addLog(`Catálogo: máquina "${removed}" eliminada`);
@@ -905,6 +907,7 @@ function applyMachine(){
     addLog(`Máquina removida de ${eSel}`);
   }
   saveLocal();
+  publicarSettings();
   renderEdit();
   renderMain();
   renderTable();
@@ -918,6 +921,7 @@ function clearMachine(){
   }
   delete stationMachines[eSel];
   saveLocal();
+  publicarSettings();
   renderEdit();
   renderMain();
   renderTable();
@@ -1062,6 +1066,14 @@ async function syncFromSheets(silent=false){
       settings={...settings,...data.settings};
       settings.api=apiGuardada;   // URL siempre local
       assignments=asignacionesGuardadas; // nunca tocar timestamps desde settings
+      // Restaurar catalogo de maquinas y asignacion estacion->maquina
+      if(data.settings._maquinas&&Array.isArray(data.settings._maquinas)&&data.settings._maquinas.length>0)
+        maquinas=data.settings._maquinas;
+      if(data.settings._stationMachines&&Object.keys(data.settings._stationMachines).length>0)
+        stationMachines=data.settings._stationMachines;
+      // Proteger etiquetas customizadas: si el servidor no tiene, conservar las locales
+      if(!data.settings.etiquetas||data.settings.etiquetas.length===0)
+        settings.etiquetas=settings.etiquetas||[];
       loadSettingsUI();
     }
 
@@ -1668,7 +1680,10 @@ function saveSettings(){
 
 async function publicarSettings(){
   // Publicar todo excepto la URL de API (es local por PC)
+  // maquinas y stationMachines viajan dentro de settings para sincronizarse
   const {api, ...settingsParaPublicar} = settings;
+  settingsParaPublicar._maquinas      = maquinas;
+  settingsParaPublicar._stationMachines = stationMachines;
   try{
     await apiPost({action:'guardar_settings', settings:settingsParaPublicar});
   }catch(e){/* silencioso */}
