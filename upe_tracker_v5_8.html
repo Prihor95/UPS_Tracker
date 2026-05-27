@@ -1,0 +1,2244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>UPE Floor Tracker</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F5F5F7;color:#1D1D1F;font-size:14px}
+.topbar{background:#fff;border-bottom:1px solid #E0E0E0;padding:10px 20px;display:flex;align-items:center;gap:12px}
+.topbar h1{font-size:15px;font-weight:600;flex:1}
+.turno-badge{padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600}
+.turno-mañana{background:#FEF3E2;color:#B06000}
+.turno-tarde{background:#E8F0FE;color:#1A73E8}
+.turno-noche{background:#EDE7F6;color:#5E35B1}
+.turno-finde{background:#F0F0F0;color:#888}
+.tabs{display:flex;border-bottom:1px solid #E0E0E0;background:#fff;padding:0 20px}
+.tab{padding:8px 16px;font-size:13px;border:none;background:none;cursor:pointer;color:#666;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.active{color:#1D1D1F;border-bottom-color:#1D1D1F;font-weight:500}
+.sync-bar{display:flex;align-items:center;gap:8px;padding:8px 20px;background:#fff;border-bottom:1px solid #E0E0E0;font-size:12px;color:#666}
+.sdot{width:8px;height:8px;border-radius:50%;background:#ccc;flex-shrink:0}
+.sdot.ok{background:#34A853}.sdot.err{background:#EA4335}.sdot.busy{background:#FBBC04;animation:blink .7s infinite alternate}
+@keyframes blink{from{opacity:1}to{opacity:.3}}
+.bsync{padding:4px 12px;font-size:12px;border:1px solid #E0E0E0;border-radius:6px;background:#fff;cursor:pointer;margin-left:auto}
+.bsync:hover{background:#F5F5F7}.bsync:disabled{opacity:.4;cursor:not-allowed}
+.content{padding:16px 20px}
+.view{display:none}.view.active{display:block}
+
+/* CROQUIS */
+.grid2{display:grid;grid-template-columns:1fr 260px;gap:16px}
+.panel{display:flex;flex-direction:column;gap:12px}
+.card{background:#fff;border:1px solid #E0E0E0;border-radius:10px;padding:14px}
+.ctitle{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;font-weight:500}
+.flabel{font-size:12px;color:#555;margin-bottom:3px;display:block}
+.inp{width:100%;padding:7px 10px;font-size:13px;border:1px solid #E0E0E0;border-radius:7px;background:#FAFAFA;color:#1D1D1F;margin-bottom:8px}
+.inp:focus{outline:none;border-color:#1D1D1F;background:#fff}
+.inp-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.inp-sm{width:100%;padding:6px 8px;font-size:12px;border:1px solid #E0E0E0;border-radius:7px;background:#FAFAFA;color:#1D1D1F;margin-bottom:8px}
+.inp-sm:focus{outline:none;border-color:#1D1D1F}
+.btn{width:100%;padding:8px;font-size:13px;font-weight:500;border:1px solid #E0E0E0;border-radius:7px;background:#fff;color:#1D1D1F;cursor:pointer;margin-bottom:5px}
+.btn:hover{background:#F5F5F7}.btn:active{transform:scale(.99)}.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-primary{background:#1D1D1F;color:#fff;border-color:#1D1D1F}.btn-primary:hover{background:#333}
+.bsm{padding:3px 9px;font-size:11px;border:1px solid #E0E0E0;border-radius:5px;background:none;color:#555;cursor:pointer}
+.bsm:hover{background:#F5F5F7}
+.bdanger{border-color:#EA4335;color:#C5221F}.bdanger:hover{background:#FDE8E8}
+.smsg{font-size:12px;min-height:18px;margin-top:2px}
+.mok{color:#34A853}.merr{color:#EA4335}
+.loglist{font-size:11px;color:#666;max-height:90px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.loge{border-left:2px solid #E0E0E0;padding-left:6px;line-height:1.5}
+
+/* ALERTA PRÓXIMAS */
+.alertas-wrap{margin-top:10px}
+.alerta-title{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;font-weight:500}
+.alerta-list{display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto}
+.alerta-item{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:7px;font-size:12px}
+.alerta-high{background:#FDE8E8;border:1px solid #F5C6C6}
+.alerta-med{background:#FEF3E2;border:1px solid #F5DFA6}
+.alerta-name{font-weight:500}
+.alerta-info{font-size:11px;color:#666;text-align:right}
+
+/* FLOOR */
+.floor-container{display:flex;flex-direction:column;gap:8px}
+.fw{background:#F5F5F7;border-radius:10px;border:1px solid #E0E0E0;overflow:hidden;min-height:440px;display:flex}
+.fsvg{width:100%;height:100%;min-height:440px;display:block}
+
+/* TOOLTIP */
+.tooltip{position:fixed;background:#fff;border:1px solid #E0E0E0;border-radius:10px;padding:10px 14px;font-size:12px;pointer-events:none;z-index:9999;min-width:180px;display:none;box-shadow:0 4px 20px rgba(0,0,0,.12)}
+.ttn{font-weight:600;font-size:14px;margin-bottom:4px}
+.tt-row{display:flex;justify-content:space-between;gap:12px;margin-top:3px;font-size:12px}
+.tt-label{color:#888}
+.tt-val{font-weight:500}
+.pct-bar-wrap{height:6px;background:#E0E0E0;border-radius:3px;margin-top:6px;overflow:hidden}
+.pct-bar{height:100%;border-radius:3px;transition:width .3s}
+
+/* TABLA */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;font-size:11px;font-weight:600;color:#888;padding:8px 10px;border-bottom:1px solid #E0E0E0;text-transform:uppercase;letter-spacing:.04em}
+.tbl td{padding:7px 10px;border-bottom:1px solid #F0F0F0}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:#FAFAFA}
+.bdg{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:500}
+.bf{background:#E8F0FE;color:#1A73E8}.bu{background:#E6F4EA;color:#137333}
+.turno-pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:500}
+
+/* TIPO BATERÍA */
+.bat-tipo-A{background:#EDE7F6;color:#5E35B1;border:1.5px solid #9C6FD6}
+.bat-tipo-O{background:#E8F5E9;color:#2E7D32;border:1.5px solid #66BB6A}
+.bat-tipo-{background:#E8F0FE;color:#1A73E8;border:1.5px solid #78A9F5}
+.tipo-badge{display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:600;margin-left:4px}
+
+/* ALMACÉN */
+.bgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.bc{border:1px solid #E0E0E0;border-radius:10px;padding:14px;background:#fff}
+.bc-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.bcnt{font-size:26px;font-weight:600;line-height:1;margin:4px 0}
+.blist{display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;margin-bottom:10px}
+.bi{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:4px 0;border-bottom:1px solid #F0F0F0}
+.bi:last-child{border-bottom:none}
+.arow{display:flex;gap:6px}
+.ainp{flex:1;padding:6px 9px;font-size:12px;border:1px solid #E0E0E0;border-radius:6px;background:#FAFAFA}
+.ainp:focus{outline:none;border-color:#1D1D1F}
+.abtn{padding:6px 12px;font-size:12px;border:1px solid #E0E0E0;border-radius:6px;background:#fff;cursor:pointer}
+.abtn:hover{background:#F5F5F7}
+.swap-all-btn{width:100%;padding:6px;font-size:12px;border:1px solid #E0E0E0;border-radius:6px;background:#fff;cursor:pointer;margin-bottom:10px;color:#555}
+.swap-all-btn:hover{background:#F5F5F7}
+
+/* EDITAR */
+.uz{border:2px dashed #D0D0D0;border-radius:10px;padding:2rem;text-align:center;cursor:pointer;color:#888;font-size:13px;margin-bottom:12px}
+.uz:hover{border-color:#1D1D1F;color:#1D1D1F}
+.etb{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding:10px;background:#F5F5F7;border-radius:8px}
+.eb{padding:5px 12px;font-size:12px;border:1px solid #E0E0E0;border-radius:6px;background:#fff;color:#555;cursor:pointer}
+.eb.active{background:#1D1D1F;border-color:#1D1D1F;color:#fff;font-weight:500}
+.eb:hover:not(.active){background:#F5F5F7}
+.ehi{font-size:12px;color:#666;margin-bottom:10px}
+.efrm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.ei{padding:6px 9px;font-size:12px;border:1px solid #E0E0E0;border-radius:6px;background:#FAFAFA;width:95px}
+.ei:focus{outline:none;border-color:#1D1D1F}
+.iinfo{font-size:12px;color:#555;display:flex;align-items:center;gap:8px;margin-bottom:12px}
+
+/* TABLA OPERACIÓN */
+.op-sel{padding:3px 6px;font-size:12px;border:1px solid #E0E0E0;border-radius:6px;background:#fff;cursor:pointer;min-width:80px}
+.op-sel:focus{outline:none;border-color:#1A73E8}
+.op-sel.est-en-uso{background:#E6F4EA;color:#137333;border-color:#B7DFC4;font-weight:500}
+.op-sel.est-cambio{background:#FDE8E8;color:#C5221F;border-color:#F5C6C6;font-weight:500}
+.op-sel.est-carga{background:#FEF3E2;color:#B06000;border-color:#F5DFA6;font-weight:500}
+.op-sel.est-sombra{background:#F0F0F0;color:#666;border-color:#D0D0D0;font-weight:500}
+.maq-badge{display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;background:#E6F4EA;color:#137333}
+.row-disabled{opacity:.45}
+.pct-cell{font-weight:600}
+.pct-mini-bar{height:4px;border-radius:2px;margin-top:3px;background:#E0E0E0;overflow:hidden}
+.pct-mini-fill{height:100%;border-radius:2px}
+.dot-disabled circle{fill:#E0E0E0!important;stroke:#BDBDBD!important}
+.dot-disabled text{fill:#BDBDBD!important}
+
+/* TABLA OPERACIONAL */
+.op-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.op-tbl th{text-align:left;font-size:11px;font-weight:600;color:#888;padding:8px 10px;border-bottom:2px solid #E0E0E0;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;position:sticky;top:0;background:#fff;z-index:1}
+.op-tbl td{padding:7px 10px;border-bottom:1px solid #F0F0F0;vertical-align:middle}
+.op-tbl tr:hover td{background:#FAFAFA}
+.op-tbl tr.row-disabled td{background:#F5F5F5;color:#AAA}
+.est-badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;cursor:pointer;min-width:80px;text-align:center}
+.est-en-uso{background:#E6F4EA;color:#137333}
+.est-cambio{background:#FDE8E8;color:#C5221F}
+.est-carga{background:#FEF3E2;color:#B06000}
+.est-sombra{background:#F0F0F0;color:#777}
+.maq-badge{display:inline-block;padding:3px 10px;border-radius:6px;font-size:12px;font-weight:600;background:#E6F4EA;color:#137333}
+.pct-cell{font-weight:600;font-variant-numeric:tabular-nums}
+
+/* AUTOCOMPLETE */
+.ac-wrap{position:relative;width:100%;margin-bottom:0}
+.ac-list{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #E0E0E0;border-radius:8px;z-index:500;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.12);display:none}
+.autocomplete-item{padding:9px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #F5F5F5;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.autocomplete-item:last-child{border-bottom:none}
+.autocomplete-item:hover{background:#F0F7FF}
+.ac-item{padding:7px 10px;font-size:13px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.ac-item:hover{background:#F5F5F7}
+.ac-item-id{font-weight:500}
+.ac-item-tipo{font-size:10px;color:#888}
+
+/* AJUSTES */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.setting-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #F0F0F0}
+.setting-row:last-child{border-bottom:none}
+.setting-label{font-size:13px}
+.setting-desc{font-size:11px;color:#888;margin-top:2px}
+.setting-inp{width:80px;padding:5px 8px;font-size:13px;border:1px solid #E0E0E0;border-radius:6px;text-align:center}
+.setting-inp:focus{outline:none;border-color:#1D1D1F}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>🗺 UPE Floor Tracker</h1>
+  <span id="turno-badge" class="turno-badge">—</span>
+  <span id="clock" style="font-size:13px;color:#555;font-variant-numeric:tabular-nums"></span>
+</div>
+<div class="tabs">
+  <button class="tab active" id="tab-croquis" onclick="sw('croquis',this)">Croquis</button>
+  <button class="tab" id="tab-operacion" onclick="sw('operacion',this)">Operación</button>
+  <button class="tab" id="tab-almacen" onclick="sw('almacen',this)">Almacén</button>
+  <button class="tab" id="tab-tabla" onclick="sw('tabla',this)">Estado</button>
+  <button class="tab" id="tab-editar" onclick="sw('editar',this)">Editar</button>
+  <button class="tab" id="tab-ajustes" onclick="sw('ajustes',this)">Ajustes</button>
+</div>
+<div class="sync-bar">
+  <div class="sdot busy" id="sdot"></div>
+  <span id="slbl">Inicializando...</span>
+  <button class="bsync" id="bsyncbtn" onclick="syncFromSheets(false)">↻ Sincronizar</button>
+</div>
+
+<div class="content">
+
+<!-- ══ CROQUIS ══ -->
+<div class="view active" id="view-croquis">
+  <div class="grid2">
+    <div class="floor-container">
+      <div class="fw">
+        <svg id="svg-main" class="fsvg" viewBox="0 0 800 460" xmlns="http://www.w3.org/2000/svg">
+          <rect width="800" height="460" fill="#F5F5F7" rx="8"/>
+          <image id="bg-main" x="0" y="0" width="800" height="460" preserveAspectRatio="xMidYMid meet" style="display:none"/>
+          <text id="noi-main" x="400" y="220" text-anchor="middle" font-size="13" fill="#AAA" font-family="-apple-system,sans-serif">Sin plano — cárgalo en la pestaña Editar</text>
+          <g id="lyr-main"></g>
+        </svg>
+      </div>
+      <!-- Leyenda horizontal abajo del croquis -->
+      <div style="display:flex;gap:16px;padding:8px 12px;background:#fff;border:1px solid #E0E0E0;border-radius:8px;font-size:12px;color:#555;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px"><div style="width:12px;height:12px;border-radius:50%;background:#E8F0FE;border:1.5px solid #1A73E8"></div>Libre</div>
+        <div style="display:flex;align-items:center;gap:6px"><div style="width:12px;height:12px;border-radius:50%;background:#E6F4EA;border:1.5px solid #137333"></div>Con UPE activa</div>
+        <div style="display:flex;align-items:center;gap:6px"><div style="width:12px;height:12px;border-radius:50%;background:#FEF3E2;border:2px solid #E37400"></div>Seleccionada</div>
+        <div style="display:flex;align-items:center;gap:6px"><div style="width:12px;height:12px;border-radius:50%;background:#FDE8E8;border:2px solid #EA4335"></div>Próxima a cambiar</div>
+        <div style="display:flex;align-items:center;gap:6px"><div style="width:12px;height:12px;border-radius:50%;background:#E0E0E0;border:1.5px solid #BDBDBD"></div>Deshabilitada</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="card">
+        <div class="ctitle">Asignar UPE</div>
+        <label class="flabel">Estación</label>
+        <input class="inp" id="inp-st" placeholder="Ej: J14" oninput="this.value=this.value.toUpperCase();validateBat(document.getElementById('inp-upe').value.trim().toUpperCase())"/>
+        <label class="flabel">ID batería nueva</label>
+        <div class="ac-wrap">
+          <input class="inp" id="inp-upe" placeholder="Escribe número (ej: 12345)" oninput="onBatInput(this)" onblur="setTimeout(()=>validateBat(this.value.trim().toUpperCase()),200)" autocomplete="off"/>
+          <div class="ac-list" id="ac-list"></div>
+        </div>
+        <div id="bat-warning" style="display:none;font-size:12px;padding:7px 10px;border-radius:7px;border:1px solid;margin-bottom:8px;line-height:1.5"></div>
+        <div class="inp-row">
+          <div>
+            <label class="flabel">% inicio</label>
+            <input class="inp-sm" id="inp-pct-ini" type="number" min="0" max="100" value="100"/>
+          </div>
+          <div>
+            <label class="flabel">% fin (cambio)</label>
+            <input class="inp-sm" id="inp-pct-fin" type="number" min="0" max="100" value="10"/>
+          </div>
+        </div>
+        <!-- Locomotion y etiqueta -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:8px 10px;background:#F0F7FF;border:1px solid #C5DCF5;border-radius:7px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="chk-loco" style="width:16px;height:16px;cursor:pointer" onchange="onLocoChange()"/>
+            <div>
+              <label for="chk-loco" style="font-size:13px;font-weight:500;cursor:pointer">🚂 Locomotion activa</label>
+              <div style="font-size:10px;color:#666" id="loco-hint">Usará promedio normal</div>
+            </div>
+          </div>
+        </div>
+        <label class="flabel">Etiqueta del ciclo</label>
+        <select class="inp" id="sel-etiqueta" style="margin-bottom:10px">
+          <option value="">— Normal (sin etiqueta) —</option>
+          <option value="falla">⚠ Falla en el turno</option>
+          <option value="locomotion">🚂 Actividad con locomotion</option>
+        </select>
+        <button class="btn btn-primary" id="btn-a" onclick="assignUPE()">Registrar asignación</button>
+        <button class="btn" id="btn-l" onclick="clearStation()">Liberar estación</button>
+        <div class="smsg" id="smsg"></div>
+      </div>
+
+      <!-- Próximas a cambiar -->
+      <div class="card" style="flex:1">
+        <div class="ctitle">⚠ Próximas a cambiar</div>
+        <div class="alerta-list" id="alerta-list">
+          <div style="font-size:11px;color:#AAA">Sin alertas activas</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ctitle">Actividad reciente</div>
+        <div class="loglist" id="loglist"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ OPERACIÓN ══ -->
+<div class="view" id="view-operacion">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:8px;height:8px;border-radius:50%;background:#ccc" id="op-sdot"></div>
+      <span style="font-size:12px;color:#888" id="op-sync-lbl">Sin sincronizar</span>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="ainp" id="op-filter" placeholder="🔍 Filtrar..." oninput="renderOpTable()" style="width:160px"/>
+      <button class="abtn" onclick="syncOperadores()">↻ Cargar desde Sheets</button>
+      <button class="abtn" style="background:#1D1D1F;color:#fff;border-color:#1D1D1F" onclick="abrirModalOp(null,event)">+ Nueva fila</button>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto;border-radius:10px;border:1px solid #E0E0E0">
+    <table style="width:100%;border-collapse:collapse;font-size:13px" id="op-table-el">
+      <thead>
+        <tr style="background:#1A73E8">
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600"># Máquina</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Escenario</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Estado batería</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">% Batería</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Batería ID</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Cambio est.</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Operador</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Turno op.</th>
+          <th style="padding:10px 6px;width:60px"></th>
+        </tr>
+      </thead>
+      <tbody id="op-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Control de cambios -->
+  <div class="card" style="margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="ctitle" style="margin-bottom:0">📋 Control de cambios de batería</div>
+      <button class="bsm" onclick="cambiosBat=[];saveLocal();renderCambios()">Limpiar</button>
+    </div>
+    <div style="overflow-x:auto;max-height:220px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="color:#888;font-size:11px;border-bottom:1px solid #E0E0E0">
+          <th style="padding:5px 8px;text-align:left;font-weight:600">Hora</th>
+          <th style="padding:5px 8px;text-align:left;font-weight:600">Estación</th>
+          <th style="padding:5px 8px;text-align:left;font-weight:600">Máquina</th>
+          <th style="padding:5px 8px;text-align:left;font-weight:600">Bat. anterior</th>
+          <th style="padding:5px 8px;text-align:left;font-weight:600">Bat. nueva</th>
+          <th style="padding:5px 8px;text-align:left;font-weight:600">Operador</th>
+          <th style="padding:5px 8px;text-align:left;font-weight:600">Turno</th>
+         </tr></thead>
+        <tbody id="cambios-tbody"></tbody>
+       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar/agregar fila operación -->
+<div id="op-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:24px;width:380px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <div style="font-size:15px;font-weight:600;margin-bottom:18px" id="op-modal-title">Nueva fila</div>
+    <label class="flabel"># Máquina</label>
+    <input class="inp" id="op-m-maquina" placeholder="Ej: MA-28"/>
+    <label class="flabel">Escenario (estación J##)</label>
+    <input class="inp" id="op-m-escenario" placeholder="Ej: J39" oninput="this.value=this.value.replace(/\s+/g,'').toUpperCase()"/>
+    <label class="flabel">Operador</label>
+    <input class="inp" id="op-m-operador" placeholder="Nombre del operador"/>
+    <label class="flabel">Turno operador</label>
+    <select class="inp" id="op-m-turno">
+      <option value="mañana">Mañana</option>
+      <option value="tarde">Tarde</option>
+      <option value="noche">Noche</option>
+    </select>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <button class="btn btn-primary" onclick="guardarFilaOp()">Guardar</button>
+      <button class="btn" onclick="cerrarModalOp()">Cancelar</button>
+    </div>
+    <div class="smsg" id="op-modal-msg" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- ══ ALMACÉN ══ -->
+<div class="view" id="view-almacen">
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="swap-all-btn" style="flex:1" onclick="swapAllDischarged()">⇄ Todas las descargadas → Cargadas</button>
+  </div>
+  <div class="bgrid">
+    <!-- CARGADAS -->
+    <div class="bc">
+      <div class="bc-header">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#137333">⚡ Cargadas</div>
+          <div class="bcnt" style="color:#137333" id="cnt-c">0</div>
+          <div style="font-size:11px;color:#888">listas para usar</div>
+        </div>
+      </div>
+      <div class="blist" id="list-c"></div>
+      <div class="arow">
+        <input class="ainp" id="iadd-c" placeholder="ID (Axx / Oxx)" oninput="this.value=this.value.toUpperCase()"/>
+        <button class="abtn" onclick="addBat('c')">+ Agregar</button>
+      </div>
+    </div>
+    <!-- EN OPERACIÓN -->
+    <div class="bc">
+      <div class="bc-header">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#1A73E8">🤖 En operación</div>
+          <div class="bcnt" style="color:#1A73E8" id="cnt-op">0</div>
+          <div style="font-size:11px;color:#888">montadas en estaciones</div>
+        </div>
+      </div>
+      <div class="blist" id="list-op"></div>
+    </div>
+    <!-- DESCARGADAS -->
+    <div class="bc">
+      <div class="bc-header">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#B06000">🔋 Descargadas</div>
+          <div class="bcnt" style="color:#B06000" id="cnt-d">0</div>
+          <div style="font-size:11px;color:#888">en carga</div>
+        </div>
+      </div>
+      <div class="blist" id="list-d"></div>
+      <div class="arow">
+        <input class="ainp" id="iadd-d" placeholder="ID (Axx / Oxx)" oninput="this.value=this.value.toUpperCase()"/>
+        <button class="abtn" onclick="addBat('d')">+ Agregar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ESTADO ══ -->
+<div class="view" id="view-tabla">
+  <div class="card">
+    <table class="tbl">
+      <thead><tr><th>Estación</th><th>Estado</th><th>Batería</th><th>Turno</th><th>% est.</th><th>Cambio est.</th><th></th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ EDITAR ══ -->
+<div class="view" id="view-editar">
+  <div class="card" style="margin-bottom:14px">
+    <div class="ctitle">Plano de planta</div>
+    <label class="uz" for="fileinp" id="uzlbl">
+      <input type="file" id="fileinp" accept="image/*" style="display:none" onchange="loadImg(event)"/>
+      📐 Haz clic o arrastra una imagen del plano<br>
+      <span style="font-size:11px;opacity:.7">PNG, JPG — se guarda en el navegador</span>
+    </label>
+    <div class="iinfo" id="iinfo" style="display:none">
+      <span id="iname" style="flex:1"></span>
+      <button class="bsm bdanger" onclick="clearImg()">Quitar imagen</button>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="ctitle" style="margin-bottom:0">Estaciones</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:11px;color:#888" id="layout-status"></span>
+        <button class="abtn" style="background:#1D1D1F;color:#fff;border-color:#1D1D1F" onclick="publicarCroquis()">☁ Publicar croquis</button>
+        <button class="abtn" onclick="bajarCroquis()">↓ Bajar croquis</button>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#888;margin-bottom:10px;padding:6px 8px;background:#F5F5F7;border-radius:6px">
+      💡 <b>Publicar</b> sube el layout actual para que todos los usuarios lo vean. <b>Bajar</b> descarga el layout más reciente del servidor.
+    </div>
+    <div class="etb">
+      <button class="eb active" id="eb-move" onclick="setMode('move')">✥ Mover</button>
+      <button class="eb" id="eb-add" onclick="setMode('add')">＋ Agregar</button>
+      <button class="eb" id="eb-del" onclick="setMode('del')">✕ Eliminar</button>
+      <button class="eb" id="eb-rename" onclick="setMode('rename')">✎ Renombrar</button>
+      <button class="eb" id="eb-machine" onclick="setMode('machine')" style="margin-left:8px">🤖 Asignar máquina</button>
+      <button class="eb" id="eb-disable" onclick="setMode('disable')">⊘ Deshabilitar</button>
+    </div>
+    <div class="efrm" id="frm-add" style="display:none">
+      <input class="ei" id="inp-nid" placeholder="ID (ej: J60)" oninput="this.value=this.value.toUpperCase()"/>
+      <span style="font-size:12px;color:#888">→ clic en el plano para colocar</span>
+    </div>
+    <div class="efrm" id="frm-rename" style="display:none">
+      <span style="font-size:12px;color:#888">Seleccionada: <b id="rsel">—</b></span>
+      <input class="ei" id="inp-rn" placeholder="Nuevo ID" oninput="this.value=this.value.toUpperCase()"/>
+      <button class="abtn" onclick="applyRename()">Aplicar</button>
+    </div>
+    <div class="efrm" id="frm-machine" style="display:none">
+      <span style="font-size:12px;color:#888">Estación: <b id="mach-sel-lbl">—</b></span>
+      <select class="ei" id="sel-maquina-edit" style="width:120px">
+        <option value="">— Sin máquina —</option>
+      </select>
+      <button class="abtn" onclick="applyMachine()">Asignar</button>
+      <button class="abtn" onclick="clearMachine()">Quitar</button>
+    </div>
+    <div class="ehi" id="ehi">Haz clic en una estación y arrástrala.</div>
+    <div class="fw">
+      <svg id="svg-edit" class="fsvg" viewBox="0 0 800 460" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair">
+        <rect width="800" height="460" fill="#F5F5F7" rx="8"/>
+        <image id="bg-edit" x="0" y="0" width="800" height="460" preserveAspectRatio="xMidYMid meet" style="display:none"/>
+        <text id="noi-edit" x="400" y="220" text-anchor="middle" font-size="13" fill="#AAA" font-family="-apple-system,sans-serif">Carga un plano arriba</text>
+        <g id="lyr-edit"></g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ══ AJUSTES ══ -->
+<div class="view" id="view-ajustes">
+  <div class="settings-grid">
+
+    <!-- Umbrales -->
+    <div class="card">
+      <div class="ctitle">Umbrales de batería</div>
+      <div class="setting-row">
+        <div><div class="setting-label">% de cambio (defecto)</div><div class="setting-desc">Porcentaje al que se considera agotada</div></div>
+        <input class="setting-inp" id="set-pct-fin" type="number" min="0" max="50" value="10"/>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">% inicio (defecto)</div><div class="setting-desc">Porcentaje al montar batería nueva</div></div>
+        <input class="setting-inp" id="set-pct-ini" type="number" min="50" max="100" value="100"/>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Alerta próximo cambio</div><div class="setting-desc">Mostrar alerta cuando % estimado sea menor a este valor</div></div>
+        <input class="setting-inp" id="set-alerta" type="number" min="5" max="50" value="20"/>
+      </div>
+    </div>
+
+    <!-- Promedios manuales -->
+    <div class="card">
+      <div class="ctitle">⏱ Duración promedio manual</div>
+      <div style="font-size:11px;color:#888;margin-bottom:12px">Fallback mientras se acumula historial. Se usa por prefijo de ID: <b>A</b>=Bluetti AC189P, <b>O</b>=OUPES 1800W.</div>
+
+      <div style="font-size:11px;font-weight:600;color:#5E35B1;margin-bottom:6px">🟣 Bluetti AC189P (A…)</div>
+      <div class="setting-row">
+        <div><div class="setting-label">Sin locomotion (min)</div></div>
+        <input class="setting-inp" id="set-prom-A-normal" type="number" min="1" value="0"/>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Con locomotion (min)</div></div>
+        <input class="setting-inp" id="set-prom-A-loco" type="number" min="1" value="0"/>
+      </div>
+
+      <div style="font-size:11px;font-weight:600;color:#2E7D32;margin-top:10px;margin-bottom:6px">🟢 OUPES 1800W (O…)</div>
+      <div class="setting-row">
+        <div><div class="setting-label">Sin locomotion (min)</div></div>
+        <input class="setting-inp" id="set-prom-O-normal" type="number" min="1" value="0"/>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Con locomotion (min)</div></div>
+        <input class="setting-inp" id="set-prom-O-loco" type="number" min="1" value="0"/>
+      </div>
+
+      <div style="font-size:11px;font-weight:600;color:#555;margin-top:10px;margin-bottom:6px">⬜ Otras baterías</div>
+      <div class="setting-row">
+        <div><div class="setting-label">Sin locomotion (min)</div></div>
+        <input class="setting-inp" id="set-prom-normal" type="number" min="1" value="0"/>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Con locomotion (min)</div></div>
+        <input class="setting-inp" id="set-prom-loco" type="number" min="1" value="0"/>
+      </div>
+
+      <div class="setting-row" style="margin-top:8px">
+        <div><div class="setting-label">Ciclos mínimos para reemplazar manual</div></div>
+        <input class="setting-inp" id="set-min-ciclos" type="number" min="1" max="50" value="5"/>
+      </div>
+      <div style="margin-top:8px;padding:8px;background:#F5F5F7;border-radius:6px;font-size:11px;color:#666">
+        💡 El sistema usa el promedio manual hasta que una batería tenga al menos <b id="min-ciclos-lbl">5</b> ciclos registrados.
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="saveSettings()">💾 Guardar y publicar ajustes</button>
+      <div class="smsg" id="settings-msg" style="margin-top:6px;text-align:center"></div>
+    </div>
+
+    <!-- Etiquetas -->
+    <div class="card">
+      <div class="ctitle">🏷 Etiquetas de ciclo</div>
+      <div style="font-size:11px;color:#888;margin-bottom:10px">Los ciclos con etiqueta <b>falla</b> se excluyen de los promedios. Las demás se incluyen según su tipo.</div>
+      <div id="etiquetas-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:6px">
+        <input class="ainp" id="inp-nueva-etiqueta" placeholder="Nueva etiqueta..." style="flex:1"/>
+        <select class="ainp" id="sel-tipo-etiqueta" style="width:120px">
+          <option value="normal">Normal</option>
+          <option value="falla">Falla (excluir)</option>
+          <option value="locomotion">Locomotion</option>
+        </select>
+        <button class="abtn" onclick="addEtiqueta()">+ Agregar</button>
+      </div>
+    </div>
+
+    <!-- Catálogo de máquinas -->
+    <div class="card">
+      <div class="ctitle">🤖 Catálogo de máquinas</div>
+      <div style="font-size:11px;color:#888;margin-bottom:10px">Lista de máquinas MA-# disponibles para asignar a estaciones. Se usan en el dropdown del Editar croquis.</div>
+      <div id="maquinas-list" style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px;max-height:160px;overflow-y:auto"></div>
+      <div style="display:flex;gap:6px">
+        <input class="ainp" id="inp-nueva-maquina" placeholder="Ej: MA-28" oninput="this.value=this.value.toUpperCase()" style="flex:1"/>
+        <button class="abtn" onclick="addMaquina()">+ Agregar</button>
+      </div>
+    </div>
+
+    <!-- Turnos -->
+    <div class="card">
+      <div class="ctitle">Turnos y breaks</div>
+      <div class="setting-row"><div><div class="setting-label">Turno mañana</div><div class="setting-desc">07:00 – 16:36 · Break: 13:00–14:00 (60 min)</div></div></div>
+      <div class="setting-row"><div><div class="setting-label">Turno tarde</div><div class="setting-desc">16:36 – 22:00 · Break: 19:06–19:36 (30 min)</div></div></div>
+      <div class="setting-row"><div><div class="setting-label">Turno noche</div><div class="setting-desc">22:00 – 07:00 · Break: 02:00–03:00 (60 min)</div></div></div>
+      <div class="setting-row"><div><div class="setting-label">Operación</div><div class="setting-desc">Lunes–Viernes (L mañana – V tarde)</div></div></div>
+    </div>
+
+    <!-- API -->
+    <div class="card">
+      <div class="ctitle">URL de Google Sheets API</div>
+      <input class="inp" id="set-api" style="font-size:11px;font-family:monospace" placeholder="https://script.google.com/macros/s/.../exec"/>
+      <button class="btn btn-primary" onclick="saveApiUrl()">Guardar URL</button>
+      <button class="btn" style="margin-top:4px" onclick="bajarAjustes()">↓ Bajar ajustes del servidor</button>
+      <div class="smsg" id="api-msg"></div>
+    </div>
+
+    <!-- Sincronización y mantenimiento -->
+    <div class="card">
+      <div class="ctitle">🔧 Mantenimiento de datos</div>
+      <div style="font-size:11px;color:#888;margin-bottom:12px">Úsalo cuando haya datos de prueba o inconsistencias en el servidor.</div>
+
+      <div style="margin-bottom:10px">
+        <div style="font-size:12px;font-weight:500;margin-bottom:4px">Publicar estado local al servidor</div>
+        <div style="font-size:11px;color:#888;margin-bottom:6px">Sube las asignaciones actuales de <b>esta PC</b> al servidor. Útil cuando el servidor tiene datos viejos.</div>
+        <button class="btn" onclick="pushLocalToServer()" style="background:#E8F0FE;border-color:#1A73E8;color:#1A73E8">↑ Publicar mi estado actual al servidor</button>
+      </div>
+
+      <div style="margin-bottom:10px;padding-top:10px;border-top:1px solid #F0F0F0">
+        <div style="font-size:12px;font-weight:500;margin-bottom:4px">Limpiar servidor</div>
+        <div style="font-size:11px;color:#888;margin-bottom:6px">Borra todas las asignaciones del servidor. Los datos locales de cada PC se conservan.</div>
+        <button class="btn bdanger" onclick="limpiarServidor()" style="background:#FDE8E8;border-color:#EA4335;color:#C5221F">⚠ Limpiar asignaciones en servidor</button>
+      </div>
+
+      <div style="padding-top:10px;border-top:1px solid #F0F0F0">
+        <div style="font-size:12px;font-weight:500;margin-bottom:4px">Limpiar datos locales</div>
+        <div style="font-size:11px;color:#888;margin-bottom:6px">Borra solo el caché de <b>esta PC</b>. No afecta al servidor ni otras PCs.</div>
+        <button class="btn bdanger" onclick="limpiarLocal()" style="background:#FDE8E8;border-color:#EA4335;color:#C5221F">🗑 Limpiar caché local</button>
+      </div>
+
+      <div style="padding-top:10px;border-top:1px solid #F0F0F0">
+        <div style="font-size:12px;font-weight:500;margin-bottom:4px">🔍 Diagnóstico de timestamps</div>
+        <div style="font-size:11px;color:#888;margin-bottom:6px">Muestra el timestamp que tiene <b>esta PC</b> por estación. Compara con la otra PC para detectar cuál tiene el dato incorrecto.</div>
+        <button class="btn" onclick="mostrarDiagnostico()" style="margin-bottom:8px">Ver timestamps locales</button>
+        <div id="diag-panel" style="display:none;max-height:200px;overflow-y:auto;font-size:11px;font-family:monospace;background:#F5F5F7;border-radius:6px;padding:8px"></div>
+      </div>
+
+      <div class="smsg" id="maint-msg" style="margin-top:8px;text-align:center"></div>
+    </div>
+
+    <!-- Promedios históricos -->
+    <div class="card">
+      <div class="ctitle">Promedios históricos por batería</div>
+      <div id="promedios-list" style="font-size:12px;color:#555;max-height:220px;overflow-y:auto">
+        <div style="color:#AAA">Sin datos aún</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<div class="tooltip" id="tt">
+  <div class="ttn" id="ttn"></div>
+  <div id="tt-body"></div>
+</div>
+
+<script>
+// ══ CONFIG ══
+const DEFAULT_API = "https://script.google.com/macros/s/AKfycbyJrb3otEXva6hHCPWD7-u64rqaBRsxCpF7BJ92CSSAnbJm4eJN-jC8vJUzVDhmTRmV/exec";
+// v5.8 — Fix duración batería proporcional al pctIni + persistencia multi-PC
+
+// ══ STATE ══
+let stations={}, assignments={}, inventory={c:[],d:[]}, log=[], bgUrl=null, promedios={};
+let disabledStations=new Set();
+let operadores=[], cambiosBat=[];
+let maquinas=[];         // catálogo: ['MA-28','MA-23',...]
+let stationMachines={};  // {J14:'MA-28', J22:'MA-23', ...}
+let settings={
+  pctIni:100, pctFin:10, alerta:20, api: DEFAULT_API,
+  promNormal:0, promLoco:0,           // otras baterías
+  promANormal:0, promALoco:0,         // Bluetti AC189P (A...)
+  promONormal:0, promOLoco:0,         // OUPES 1800W (O...)
+  minCiclos:5,
+  etiquetas:[
+    {id:'falla',     label:'⚠ Falla en el turno',         tipo:'falla'},
+    {id:'locomotion',label:'🚂 Actividad con locomotion',  tipo:'locomotion'}
+  ]
+};
+let selSt=null, eMode='move', eSel=null, drag=false, dOff={x:0,y:0};
+
+const DEFS={J17:{x:460,y:75},J14:{x:510,y:75},J15:{x:555,y:75},J22:{x:600,y:75},J46:{x:650,y:75},J11:{x:420,y:140},J53:{x:270,y:260},J51:{x:340,y:260},J48:{x:445,y:270},J5:{x:525,y:270},J42:{x:590,y:270},J40:{x:650,y:270},J37:{x:460,y:370},J34:{x:560,y:370},J31:{x:650,y:370}};
+
+// ══ TURNOS ══
+const TURNOS = [
+  { nombre:'mañana', ini: 7*60,    fin: 16*60+36, breaks:[{s:13*60, e:14*60}] },
+  { nombre:'tarde',  ini: 16*60+36,fin: 22*60,    breaks:[{s:19*60+6,e:19*60+36}] },
+  { nombre:'noche',  ini: 22*60,   fin: 24*60+7*60,breaks:[{s:2*60,e:3*60}] }
+];
+
+function getTurnoActual(){
+  const now=new Date();
+  const d=now.getDay();
+  if(d===0||d===6) return 'finde';
+  const m=now.getHours()*60+now.getMinutes();
+  if(m>=7*60 && m<16*60+36) return 'mañana';
+  if(m>=16*60+36 && m<22*60) return 'tarde';
+  return 'noche';
+}
+
+function turnoColor(t){
+  return {mañana:'turno-mañana',tarde:'turno-tarde',noche:'turno-noche',finde:'turno-finde'}[t]||'turno-finde';
+}
+
+// Calcula minutos efectivos descontando breaks entre dos timestamps (strings "yyyy-MM-dd HH:mm:ss")
+// Parsea timestamp en cualquier formato a Date
+function parseTS(s){
+  if(!s) return null;
+  if(s instanceof Date) return isNaN(s.getTime())?null:s;
+  let str=String(s).trim();
+  // "yyyy-MM-dd HH:mm:ss" → convertir a ISO compatible
+  if(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(str)){
+    str=str.replace(' ','T');
+    // Agregar offset de México si no tiene zona horaria
+    if(!/[Zz]|[+-]\d{2}:\d{2}$/.test(str)) str+='';
+  }
+  const d=new Date(str);
+  return isNaN(d.getTime())?null:d;
+}
+
+function calcEfectivo(inicioStr, finStr){
+  if(!inicioStr) return 0;
+  try{
+    const ini=parseTS(inicioStr);
+    const fin=finStr?parseTS(finStr):new Date();
+    if(!ini||!fin||ini>=fin) return 0;
+    let total=(fin-ini)/60000;
+    let breakMin=0, cursor=new Date(ini);
+    while(cursor<fin){
+      const dow=cursor.getDay(), esLab=dow>=1&&dow<=5;
+      const dayS=new Date(cursor); dayS.setHours(0,0,0,0);
+      const dayE=new Date(dayS); dayE.setDate(dayE.getDate()+1);
+      const sI=(Math.max(+cursor,+dayS)-+dayS)/60000;
+      const sF=(Math.min(+fin,+dayE)-+dayS)/60000;
+      if(esLab){
+        [[13*60,14*60],[19*60+6,19*60+36],[2*60,3*60]].forEach(([bs,be])=>{
+          breakMin+=Math.max(0,Math.min(sF,be)-Math.max(sI,bs));
+        });
+      }
+      cursor=dayE;
+    }
+    return Math.max(0,total-breakMin);
+  }catch(e){return 0;}
+}
+
+// Detecta tipo de batería por prefijo del ID
+function getTipoBat(upe_id){
+  if(!upe_id) return '';
+  const p=upe_id.charAt(0).toUpperCase();
+  return p==='A'?'A':p==='O'?'O':'';
+}
+
+// Obtiene el promedio manual según tipo y modo
+function getManualProm(upe_id, esLoco){
+  const tipo=getTipoBat(upe_id);
+  if(tipo==='A') return esLoco?settings.promALoco:settings.promANormal;
+  if(tipo==='O') return esLoco?settings.promOLoco:settings.promONormal;
+  return esLoco?settings.promLoco:settings.promNormal;
+}
+
+// Obtiene el promedio efectivo para una batería/modo
+function getPromedio(upe_id, esLoco){
+  const p=promedios[upe_id];
+  const ciclosReales=p?(esLoco?(p.ciclosLoco||0):(p.ciclosNormal||0)):0;
+  const promReal=p?(esLoco?(p.promedioLoco||0):(p.promedioNormal||0)):0;
+  if(ciclosReales>=settings.minCiclos && promReal>0) return {val:promReal, fuente:'real', ciclos:ciclosReales};
+  const manual=getManualProm(upe_id, esLoco);
+  return manual>0 ? {val:manual, fuente:'manual', ciclos:ciclosReales} : null;
+}
+
+// Porcentaje estimado actual de una batería en una estación
+// El promedio (p.val) representa la duración del rango de referencia completo:
+// 100% → pctFin (settings). Si la batería se montó con pctIni diferente,
+// escalamos el tiempo proporcional al rango real.
+function estimarPorcentaje(estacion){
+  const asgn=assignments[estacion];
+  if(!asgn||!asgn.timestamp) return null;
+  const esLoco=!!asgn.locomotion;
+  const p=getPromedio(asgn.upe_id, esLoco);
+  if(!p) return null;
+  const transcurrido=calcEfectivo(asgn.timestamp, new Date().toISOString().replace('T',' ').slice(0,19));
+  const pctIni=asgn.pct_inicio||100;
+  const pctFin=asgn.pct_fin||settings.pctFin;
+  const rango=pctIni-pctFin;
+  // Rango de referencia: del 100% al pctFin de settings (lo que mide el promedio)
+  const rangoRef=Math.max(1, 100 - (settings.pctFin||10));
+  // Tiempo que realmente dura este rango proporcional
+  const duracionRango=p.val * (rango / rangoRef);
+  const fraccion=Math.min(1, transcurrido / duracionRango);
+  return Math.max(pctFin, pctIni - rango*fraccion);
+}
+
+// Hora estimada de cambio
+function estimarHoraCambio(estacion){
+  const asgn=assignments[estacion];
+  if(!asgn||!asgn.timestamp) return null;
+  const esLoco=!!asgn.locomotion;
+  const p=getPromedio(asgn.upe_id, esLoco);
+  if(!p) return null;
+  const transcurrido=calcEfectivo(asgn.timestamp, new Date().toISOString().replace('T',' ').slice(0,19));
+  const pctIni=asgn.pct_inicio||100;
+  const pctFin=asgn.pct_fin||settings.pctFin;
+  const rango=pctIni-pctFin;
+  const rangoRef=Math.max(1, 100 - (settings.pctFin||10));
+  const duracionRango=p.val * (rango / rangoRef);
+  const restante=Math.max(0, duracionRango - transcurrido);
+  const cambio=new Date(Date.now()+restante*60000);
+  return cambio.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ══ LOCAL STORAGE ══
+function loadLocal(){
+  try{stations=JSON.parse(localStorage.getItem('upe_st')||'null')||JSON.parse(JSON.stringify(DEFS));}catch(e){stations=JSON.parse(JSON.stringify(DEFS));}
+  try{assignments=JSON.parse(localStorage.getItem('upe_asgn')||'{}');}catch(e){}
+  try{inventory=JSON.parse(localStorage.getItem('upe_inv')||'{"c":[],"d":[]}');}catch(e){}
+  try{log=JSON.parse(localStorage.getItem('upe_log')||'[]');}catch(e){}
+  try{bgUrl=localStorage.getItem('upe_bg')||null;}catch(e){}
+  try{promedios=JSON.parse(localStorage.getItem('upe_prom')||'{}');}catch(e){}
+  try{disabledStations=new Set(JSON.parse(localStorage.getItem('upe_disabled')||'[]'));}catch(e){}
+  try{cambiosBat=JSON.parse(localStorage.getItem('upe_cambios')||'[]');}catch(e){}
+  try{operadores=JSON.parse(localStorage.getItem('upe_operadores')||'[]');}catch(e){}
+  try{maquinas=JSON.parse(localStorage.getItem('upe_maquinas')||'[]');}catch(e){}
+  try{stationMachines=JSON.parse(localStorage.getItem('upe_stmach')||'{}');}catch(e){}
+  try{
+    const s=JSON.parse(localStorage.getItem('upe_settings')||'{}');
+    settings={...settings,...s};
+  }catch(e){}
+}
+
+function saveLocal(){
+  try{
+    localStorage.setItem('upe_st',JSON.stringify(stations));
+    localStorage.setItem('upe_asgn',JSON.stringify(assignments));
+    localStorage.setItem('upe_inv',JSON.stringify(inventory));
+    localStorage.setItem('upe_log',JSON.stringify(log));
+    localStorage.setItem('upe_prom',JSON.stringify(promedios));
+    localStorage.setItem('upe_settings',JSON.stringify(settings));
+    localStorage.setItem('upe_disabled',JSON.stringify([...disabledStations]));
+    localStorage.setItem('upe_cambios',JSON.stringify(cambiosBat));
+    localStorage.setItem('upe_operadores',JSON.stringify(operadores));
+    localStorage.setItem('upe_maquinas',JSON.stringify(maquinas));
+    localStorage.setItem('upe_stmach',JSON.stringify(stationMachines));
+    if(bgUrl)localStorage.setItem('upe_bg',bgUrl);else localStorage.removeItem('upe_bg');
+  }catch(e){}
+}
+
+// ══ FUNCIONES DE MÁQUINAS (Catálogo) ══
+function renderMaquinas(){
+  const el=document.getElementById('maquinas-list');
+  if(!el) return;
+  if(!maquinas.length){
+    el.innerHTML='<div style="color:#AAA;font-size:11px;padding:6px">Sin máquinas agregadas</div>';
+    return;
+  }
+  el.innerHTML=maquinas.map((m,idx)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#F5F5F7;border-radius:6px;padding:5px 10px">
+      <span style="font-weight:500;font-size:12px">${m}</span>
+      <button class="bsm bdanger" onclick="removeMaquina(${idx})">✕</button>
+    </div>
+  `).join('');
+}
+
+function addMaquina(){
+  const inp=document.getElementById('inp-nueva-maquina');
+  const val=inp.value.trim().toUpperCase();
+  if(!val){
+    alert('Escribe un nombre de máquina (ej: MA-28)');
+    return;
+  }
+  if(maquinas.includes(val)){
+    alert('Esta máquina ya existe en el catálogo');
+    return;
+  }
+  maquinas.push(val);
+  saveLocal();
+  renderMaquinas();
+  actualizarSelectMaquinas();
+  inp.value='';
+  addLog(`Catálogo: máquina "${val}" agregada`);
+}
+
+function removeMaquina(idx){
+  const removed=maquinas[idx];
+  maquinas.splice(idx,1);
+  saveLocal();
+  renderMaquinas();
+  actualizarSelectMaquinas();
+  addLog(`Catálogo: máquina "${removed}" eliminada`);
+}
+
+function actualizarSelectMaquinas(){
+  const sel=document.getElementById('sel-maquina-edit');
+  if(!sel) return;
+  const current=sel.value;
+  sel.innerHTML='<option value="">— Sin máquina —</option>'+
+    maquinas.map(m=>`<option value="${m}">${m}</option>`).join('');
+  sel.value=current;
+}
+
+// ══ ASIGNAR MÁQUINA A ESTACIÓN EN MODO EDITAR ══
+function setMode(m){
+  eMode=m;eSel=null;drag=false;
+  ['move','add','del','rename','machine','disable'].forEach(k=>{const el=document.getElementById('eb-'+k);if(el)el.classList.remove('active');});
+  const ae=document.getElementById('eb-'+m);if(ae)ae.classList.add('active');
+  document.getElementById('frm-add').style.display=m==='add'?'flex':'none';
+  document.getElementById('frm-rename').style.display=m==='rename'?'flex':'none';
+  document.getElementById('frm-machine').style.display=m==='machine'?'flex':'none';
+  const h={move:'Haz clic en una estación y arrástrala.',add:'Escribe el ID y haz clic en el plano.',del:'Haz clic en una estación para eliminarla.',rename:'Selecciona, escribe nuevo ID y aplica.',machine:'Selecciona una máquina y haz clic en una estación para asignarla.',disable:'Clic en estación para deshabilitar/habilitar. Las deshabilitadas aparecen grises y no aceptan baterías.'};
+  document.getElementById('ehi').textContent=h[m]||'';renderEdit();
+}
+
+function applyMachine(){
+  if(!eSel){
+    alert('Primero haz clic en una estación');
+    return;
+  }
+  const sel=document.getElementById('sel-maquina-edit');
+  const maq=sel.value;
+  if(maq){
+    stationMachines[eSel]=maq;
+    addLog(`Máquina ${maq} asignada a ${eSel}`);
+  } else {
+    delete stationMachines[eSel];
+    addLog(`Máquina removida de ${eSel}`);
+  }
+  saveLocal();
+  renderEdit();
+  renderMain();
+  renderTable();
+  eSel=null;
+}
+
+function clearMachine(){
+  if(!eSel){
+    alert('Primero haz clic en una estación');
+    return;
+  }
+  delete stationMachines[eSel];
+  saveLocal();
+  renderEdit();
+  renderMain();
+  renderTable();
+  addLog(`Máquina removida de ${eSel}`);
+  const sel=document.getElementById('sel-maquina-edit');
+  if(sel) sel.value='';
+}
+
+// ══ PUBLICAR / BAJAR CROQUIS ══
+async function publicarCroquis(){
+  const lbl=document.getElementById('layout-status');
+  lbl.textContent='Publicando...';
+  lbl.style.color='#888';
+  try{
+    const payload={
+      action:'guardar_layout',
+      stations: stations,
+      timestamp: tsISO(),
+      autor: 'supervisor'
+    };
+    const r=await apiPost(payload);
+    if(r&&r.ok){
+      lbl.textContent='✓ Publicado · '+ts();
+      lbl.style.color='#34A853';
+      addLog('Croquis publicado para todos los usuarios');
+    } else {
+      lbl.textContent='Error: '+(r&&r.error?r.error:'sin respuesta');
+      lbl.style.color='#EA4335';
+    }
+  }catch(e){
+    lbl.textContent='Error de red';
+    lbl.style.color='#EA4335';
+  }
+}
+
+async function bajarCroquis(){
+  const lbl=document.getElementById('layout-status');
+  lbl.textContent='Descargando...';
+  lbl.style.color='#888';
+  try{
+    const res=await fetch(settings.api+'?action=layout&t='+Date.now());
+    const data=await res.json();
+    if(data.ok && data.stations){
+      stations=data.stations;
+      saveLocal();
+      renderMain();renderEdit();renderTable();
+      lbl.textContent='✓ Layout actualizado · '+ts();
+      lbl.style.color='#34A853';
+      addLog('Croquis bajado del servidor · '+(data.timestamp||''));
+    } else {
+      lbl.textContent='Sin layout guardado aún';
+      lbl.style.color='#888';
+    }
+  }catch(e){
+    lbl.textContent='Error al bajar: '+e.message;
+    lbl.style.color='#EA4335';
+  }
+}
+
+function saveApiUrl(){
+  const url=document.getElementById('set-api').value.trim();
+  if(url){settings.api=url;saveLocal();document.getElementById('api-msg').textContent='✓ URL guardada';document.getElementById('api-msg').className='smsg mok';}
+}
+
+// ══ SYNC ══
+function setSS(state,msg){
+  const dot = document.getElementById('sdot');
+  const lbl = document.getElementById('slbl');
+  const btn = document.getElementById('bsyncbtn');
+  
+  dot.className = 'sdot ' + state;
+  lbl.textContent = msg;
+  
+  // Solo deshabilitar el botón si está en busy, pero siempre habilitar después de ok/err
+  if (state === 'busy') {
+    btn.disabled = true;
+  } else {
+    btn.disabled = false;
+  }
+}
+
+async function syncFromSheets(silent=false){
+  if(!silent) setSS('busy','Conectando...');
+  try{
+    const res=await fetch(settings.api+'?action=all&t='+Date.now());
+    const data=await res.json();
+    if(!data.ok) throw new Error(data.error||'Error del servidor');
+
+    // Asignaciones — gana siempre el timestamp más reciente (local vs servidor)
+    if(data.asignaciones){
+      const localAsgn=assignments||{};
+      const newAsgn={};
+
+      // Primero procesar lo que viene del servidor
+      Object.entries(data.asignaciones).forEach(([k,v])=>{
+        if(!v||!v.upe_id) return;
+        const local=localAsgn[k];
+        const tsServer=(parseTS(v.timestamp)||new Date(0)).getTime();
+        const tsLocal=local?(parseTS(local.timestamp)||new Date(0)).getTime():0;
+
+        if(!local||!local.upe_id){
+          // No hay nada local → usar servidor
+          newAsgn[k]=v;
+        } else if(local.upe_id===v.upe_id){
+          // Misma batería → conservar timestamp local (más confiable), merge del resto
+          newAsgn[k]={...v,
+            timestamp:  local.timestamp,
+            _estado:    local._estado||v._estado,
+            locomotion: local.locomotion!==undefined?local.locomotion:v.locomotion,
+            etiqueta:   local.etiqueta||v.etiqueta
+          };
+        } else {
+          // Baterías distintas → gana el más reciente
+          newAsgn[k]=tsLocal>=tsServer?local:v;
+        }
+      });
+
+      // Conservar asignaciones locales que el servidor no tenga
+      Object.entries(localAsgn).forEach(([k,v])=>{
+        if(!newAsgn[k]&&v&&v.upe_id) newAsgn[k]=v;
+      });
+
+      assignments=newAsgn;
+    }
+
+    if(data.inventario)  inventory={c:data.inventario.c||[],d:data.inventario.d||[]};
+    if(data.log&&data.log.length) log=data.log;
+    if(data.promedios)   promedios=data.promedios;
+    if(data.operadores&&data.operadores.length) operadores=data.operadores;
+
+    // Bajar layout publicado
+    if(data.stations&&Object.keys(data.stations).length>0){
+      stations=data.stations;
+      const lbl=document.getElementById('layout-status');
+      if(lbl){lbl.textContent='Layout: '+(data.layout_ts||'servidor');lbl.style.color='#888';}
+    }
+
+    // Bajar settings compartidos — sin sobreescribir API URL ni assignments
+    if(data.settings){
+      const apiGuardada=settings.api;
+      const asignacionesGuardadas=assignments; // proteger
+      settings={...settings,...data.settings};
+      settings.api=apiGuardada;   // URL siempre local
+      assignments=asignacionesGuardadas; // nunca tocar timestamps desde settings
+      loadSettingsUI();
+    }
+
+    saveLocal();renderAll();
+    setSS('ok','Sincronizado · '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
+  }catch(e){
+    setSS('err','Sin conexión — trabajando offline');
+  }
+}
+
+async function apiPost(body){
+  try{
+    const res=await fetch(settings.api,{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}});
+    return await res.json();
+  }catch(e){return {ok:false,error:e.message};}
+}
+
+// ══ TIEMPO ══
+function ts(){return new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});}
+function tsISO(){return new Date().toISOString().replace('T',' ').slice(0,19);}
+function addLog(msg){log.unshift(ts()+' · '+msg);if(log.length>30)log.pop();saveLocal();renderLog();}
+
+// ══ DOTS ══
+function dotColor(id,pos,sel,asgn){
+  if(sel) return {fill:'#FEF3E2',stroke:'#E37400',sw:'2.5',tc:'#B06000'};
+  if(asgn){
+    const pct=estimarPorcentaje(id);
+    if(pct!==null && pct<=settings.alerta)
+      return {fill:'#FDE8E8',stroke:'#EA4335',sw:'2',tc:'#C5221F'};
+    return {fill:'#E6F4EA',stroke:'#137333',sw:'1.5',tc:'#137333'};
+  }
+  return {fill:'#E8F0FE',stroke:'#1A73E8',sw:'1.5',tc:'#1A73E8'};
+}
+
+function mkDot(id,pos,sel,asgn){
+  const ns='http://www.w3.org/2000/svg',g=document.createElementNS(ns,'g');
+  const isDisabled=disabledStations.has(id);
+  const col=dotColor(id,pos,sel,!!asgn);
+  const c=document.createElementNS(ns,'circle');
+  c.setAttribute('cx',pos.x);c.setAttribute('cy',pos.y);c.setAttribute('r',16);
+  c.setAttribute('fill',col.fill);c.setAttribute('stroke',col.stroke);c.setAttribute('stroke-width',col.sw);
+
+  // Label J##
+  const t=document.createElementNS(ns,'text');
+  t.setAttribute('x',pos.x);t.setAttribute('y',pos.y+2);
+  t.setAttribute('text-anchor','middle');t.setAttribute('font-size','8');
+  t.setAttribute('font-weight','600');t.setAttribute('font-family','-apple-system,sans-serif');
+  t.setAttribute('pointer-events','none');t.setAttribute('fill',col.tc);
+  t.textContent=id;
+  g.appendChild(c);g.appendChild(t);
+
+  // Máquina asignada debajo del J##
+  const maq=stationMachines[id];
+  if(maq){
+    const tm=document.createElementNS(ns,'text');
+    tm.setAttribute('x',pos.x);tm.setAttribute('y',pos.y+12);
+    tm.setAttribute('text-anchor','middle');tm.setAttribute('font-size','7');
+    tm.setAttribute('font-weight','500');tm.setAttribute('font-family','-apple-system,sans-serif');
+    tm.setAttribute('pointer-events','none');
+    tm.setAttribute('fill',isDisabled?'#BDBDBD':col.tc);
+    tm.setAttribute('opacity','0.85');
+    tm.textContent=maq;
+    g.appendChild(tm);
+  }
+
+  // Indicador tipo batería (esquina superior derecha)
+  if(asgn&&asgn.upe_id){
+    const tipo=getTipoBat(asgn.upe_id);
+    if(tipo){
+      const ti=document.createElementNS(ns,'circle');
+      ti.setAttribute('cx',pos.x+12);ti.setAttribute('cy',pos.y-12);ti.setAttribute('r',6);
+      ti.setAttribute('fill',tipo==='A'?'#9C6FD6':'#66BB6A');
+      ti.setAttribute('pointer-events','none');
+      const tt2=document.createElementNS(ns,'text');
+      tt2.setAttribute('x',pos.x+12);tt2.setAttribute('y',pos.y-9);
+      tt2.setAttribute('text-anchor','middle');tt2.setAttribute('font-size','7');
+      tt2.setAttribute('font-weight','700');tt2.setAttribute('fill','#fff');
+      tt2.setAttribute('pointer-events','none');
+      tt2.textContent=tipo;
+      g.appendChild(ti);g.appendChild(tt2);
+    }
+  }
+
+  // Línea diagonal si deshabilitada
+  if(isDisabled){
+    const line=document.createElementNS(ns,'line');
+    line.setAttribute('x1',pos.x-8);line.setAttribute('y1',pos.y-8);
+    line.setAttribute('x2',pos.x+8);line.setAttribute('y2',pos.y+8);
+    line.setAttribute('stroke','#BDBDBD');line.setAttribute('stroke-width','2');
+    line.setAttribute('pointer-events','none');
+    g.appendChild(line);
+  }
+  return g;
+}
+
+function renderMain(){
+  const l=document.getElementById('lyr-main');l.innerHTML='';
+  Object.entries(stations).forEach(([id,pos])=>{
+    const asgn=assignments[id]||null;
+    const g=mkDot(id,pos,selSt===id,asgn);
+    g.style.cursor='pointer';
+    g.addEventListener('click',()=>{selSt=id;document.getElementById('inp-st').value=id;renderMain();setMsg('');});
+    g.addEventListener('mouseenter',e=>showTT(e,id));
+    g.addEventListener('mousemove',mvTT);
+    g.addEventListener('mouseleave',hidTT);
+    l.appendChild(g);
+  });
+}
+
+function renderEdit(){
+  const l=document.getElementById('lyr-edit');l.innerHTML='';
+  Object.entries(stations).forEach(([id,pos])=>{
+    const g=mkDot(id,pos,eSel===id,assignments[id]||null);
+    g.style.cursor=eMode==='move'?'grab':eMode==='del'?'not-allowed':'pointer';
+    g.addEventListener('mousedown',e=>onDown(e,id));
+    l.appendChild(g);
+  });
+}
+
+function renderAll(){renderMain();renderEdit();renderTable();renderInv();renderLog();renderAlertas();renderPromedios();}
+
+// ══ TOOLTIP RICO ══
+function showTT(e,id){
+  const tt=document.getElementById('tt');
+  document.getElementById('ttn').textContent=id;
+  const asgn=assignments[id];
+  if(!asgn||!asgn.upe_id){
+    document.getElementById('tt-body').innerHTML='<div style="color:#888;font-size:12px">Sin UPE asignada</div>';
+  } else {
+    const esLoco=!!asgn.locomotion;
+    const pct=estimarPorcentaje(id);
+    const hora=estimarHoraCambio(id);
+    const prom=getPromedio(asgn.upe_id,esLoco);
+    const transcurrido=calcEfectivo(asgn.timestamp,new Date().toISOString().replace('T',' ').slice(0,19));
+    const tipo=getTipoBat(asgn.upe_id);
+    const tipoLabel=tipo==='A'?'🟣 Bluetti AC189P':tipo==='O'?'🟢 OUPES 1800W':'';
+    let html=`
+      <div class="tt-row"><span class="tt-label">UPE</span><span class="tt-val">${asgn.upe_id}${tipoLabel?` <span style="font-size:10px;color:#888">${tipoLabel}</span>`:''}</span></div>
+      ${esLoco?'<div class="tt-row"><span style="color:#1A73E8;font-size:11px">🚂 Locomotion activa</span></div>':''}
+      ${asgn.etiqueta?'<div class="tt-row"><span class="tt-label">Etiqueta</span><span class="tt-val">'+asgn.etiqueta+'</span></div>':''}
+      <div class="tt-row"><span class="tt-label">Turno inicio</span><span class="tt-val">${asgn.turno||'—'}</span></div>
+      <div class="tt-row"><span class="tt-label">Tiempo efectivo</span><span class="tt-val">${Math.round(transcurrido)} min</span></div>`;
+    if(pct!==null){
+      const color=pct<=settings.alerta?'#EA4335':pct<=40?'#FBBC04':'#34A853';
+      html+=`
+      <div class="tt-row"><span class="tt-label">% estimado</span><span class="tt-val" style="color:${color}">${Math.round(pct)}%</span></div>
+      <div class="pct-bar-wrap"><div class="pct-bar" style="width:${Math.round(pct)}%;background:${color}"></div></div>`;
+    } else {
+      html+=`<div class="tt-row"><span class="tt-label">% estimado</span><span class="tt-val" style="color:#888">Configura el promedio en Ajustes</span></div>`;
+    }
+    if(hora) html+=`<div class="tt-row"><span class="tt-label">Cambio estimado</span><span class="tt-val">~${hora}</span></div>`;
+    if(prom) html+=`<div class="tt-row"><span class="tt-label">Promedio usado</span><span class="tt-val">${prom.val} min <span style="font-size:10px;color:#888">(${prom.fuente})</span></span></div>`;
+    document.getElementById('tt-body').innerHTML=html;
+  }
+  tt.style.display='block';mvTT(e);
+}
+function mvTT(e){const t=document.getElementById('tt');t.style.left=(e.clientX+16)+'px';t.style.top=(e.clientY-10)+'px';}
+function hidTT(){document.getElementById('tt').style.display='none';}
+
+// ══ ALERTAS ══
+function renderAlertas(){
+  const list=document.getElementById('alerta-list');
+  const alertas=[];
+  Object.entries(assignments).forEach(([id,asgn])=>{
+    if(!asgn||!asgn.upe_id) return;
+    const pct=estimarPorcentaje(id);
+    if(pct!==null && pct<=settings.alerta){
+      const hora=estimarHoraCambio(id)||'pronto';
+      alertas.push({id,upe:asgn.upe_id,pct:Math.round(pct),hora});
+    }
+  });
+  if(!alertas.length){list.innerHTML='<div style="font-size:11px;color:#AAA">Sin alertas activas</div>';return;}
+  alertas.sort((a,b)=>a.pct-b.pct);
+  list.innerHTML=alertas.map(a=>`
+    <div class="alerta-item ${a.pct<=10?'alerta-high':'alerta-med'}">
+      <span class="alerta-name">${a.id} · ${a.upe}</span>
+      <div class="alerta-info">
+        <div style="font-weight:600;color:${a.pct<=10?'#C5221F':'#B06000'}">${a.pct}%</div>
+        <div>~${a.hora}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ══ PROMEDIOS ══
+function renderPromedios(){
+  const el=document.getElementById('promedios-list');
+  if(!el) return;
+  const keys=Object.keys(promedios);
+  if(!keys.length){el.innerHTML='<div style="color:#AAA">Sin datos aún</div>';return;}
+  el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<tr style="color:#888;font-size:10px"><th style="text-align:left;padding:4px 6px">Batería</th><th style="padding:4px 6px">Normal</th><th style="padding:4px 6px">Prom N</th><th style="padding:4px 6px">Loco</th><th style="padding:4px 6px">Prom L</th><th style="padding:4px 6px">Fuente</th></td>'+
+    keys.sort().map(k=>{
+      const p=promedios[k];
+      const fN=getPromedio(k,false);
+      const fL=getPromedio(k,true);
+      const src=(fN&&fN.fuente==='real')||(fL&&fL.fuente==='real')?'📊 real':'📋 manual';
+      return `<tr style="border-top:1px solid #F0F0F0">
+        <td style="padding:4px 6px;font-weight:500">${k}</td>
+        <td style="padding:4px 6px;text-align:center">${p.ciclosNormal||0}</td>
+        <td style="padding:4px 6px;text-align:center">${p.promedioNormal?Math.round(p.promedioNormal)+' min':'—'}</td>
+        <td style="padding:4px 6px;text-align:center">${p.ciclosLoco||0}</td>
+        <td style="padding:4px 6px;text-align:center">${p.promedioLoco?Math.round(p.promedioLoco)+' min':'—'}</td>
+        <td style="padding:4px 6px;text-align:center;font-size:10px">${src}</td>
+       </tr>`;
+    }).join('')+'赶</div>';
+}
+
+// Cierra un ciclo anterior actualizando promedios locales
+function cerrarCicloLocal(prev){
+  if(!prev||!prev.upe_id||!prev.timestamp) return;
+  const durEfec=calcEfectivo(prev.timestamp, new Date().toISOString().replace('T',' ').slice(0,19));
+  if(durEfec<=0) return;
+  const etq=prev.etiqueta||'';
+  const esLoco=!!prev.locomotion;
+  const esFalla=etq==='falla';
+  // Fallas se excluyen de promedios
+  if(esFalla) return;
+  if(!promedios[prev.upe_id]) promedios[prev.upe_id]={ciclosNormal:0,promedioNormal:0,ciclosLoco:0,promedioLoco:0};
+  const p=promedios[prev.upe_id];
+  if(esLoco){
+    p.ciclosLoco++;
+    p.promedioLoco=Math.round((p.promedioLoco*(p.ciclosLoco-1)+durEfec)/p.ciclosLoco);
+  } else {
+    p.ciclosNormal++;
+    p.promedioNormal=Math.round((p.promedioNormal*(p.ciclosNormal-1)+durEfec)/p.ciclosNormal);
+  }
+}
+
+// Actualiza el hint de locomotion
+function onLocoChange(){
+  const esLoco=document.getElementById('chk-loco').checked;
+  const hint=document.getElementById('loco-hint');
+  if(esLoco){
+    const min=settings.promLoco;
+    hint.textContent=min>0?'Usará promedio con locomotion ('+min+' min)':'Usará promedio con locomotion (sin configurar)';
+    hint.style.color='#1A73E8';
+    document.getElementById('sel-etiqueta').value='locomotion';
+  } else {
+    const min=settings.promNormal;
+    hint.textContent=min>0?'Usará promedio normal ('+min+' min)':'Usará promedio normal (sin configurar)';
+    hint.style.color='#666';
+    if(document.getElementById('sel-etiqueta').value==='locomotion')
+      document.getElementById('sel-etiqueta').value='';
+  }
+}
+
+// Gestión de etiquetas en Ajustes
+function addEtiqueta(){
+  const label=document.getElementById('inp-nueva-etiqueta').value.trim();
+  const tipo=document.getElementById('sel-tipo-etiqueta').value;
+  if(!label) return;
+  const id=label.toLowerCase().replace(/\s+/g,'-');
+  if(settings.etiquetas.find(e=>e.id===id)){alert('Ya existe');return;}
+  settings.etiquetas.push({id,label,tipo});
+  saveLocal();
+  document.getElementById('inp-nueva-etiqueta').value='';
+  renderEtiquetas();
+  syncSelectEtiquetas();
+}
+
+function removeEtiqueta(id){
+  // No borrar las predefinidas
+  const predefs=['falla','locomotion'];
+  if(predefs.includes(id)){alert('Esta etiqueta es predefinida y no se puede eliminar');return;}
+  settings.etiquetas=settings.etiquetas.filter(e=>e.id!==id);
+  saveLocal();renderEtiquetas();syncSelectEtiquetas();
+}
+
+function renderEtiquetas(){
+  const el=document.getElementById('etiquetas-list');
+  if(!el) return;
+  el.innerHTML=settings.etiquetas.map(e=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:#F5F5F7;border-radius:6px">
+      <div>
+        <span style="font-size:13px">${e.label}</span>
+        <span style="font-size:10px;color:#888;margin-left:6px">${e.tipo==='falla'?'⚠ excluye de promedios':e.tipo==='locomotion'?'🚂 usa promedio loco':'normal'}</span>
+      </div>
+      <button class="bsm ${['falla','locomotion'].includes(e.id)?'':'bdanger'}" onclick="removeEtiqueta('${e.id}')">${['falla','locomotion'].includes(e.id)?'🔒':'✕'}</button>
+    </div>`).join('');
+}
+
+function syncSelectEtiquetas(){
+  const sel=document.getElementById('sel-etiqueta');
+  if(!sel) return;
+  const current=sel.value;
+  sel.innerHTML='<option value="">— Normal (sin etiqueta) —</option>'+
+    settings.etiquetas.map(e=>`<option value="${e.id}">${e.label}</option>`).join('');
+  sel.value=current;
+}
+
+// ══ ASIGNAR ══
+function dis(v){document.getElementById('btn-a').disabled=v;document.getElementById('btn-l').disabled=v;}
+function setMsg(m,e){const el=document.getElementById('smsg');el.textContent=m;el.className='smsg'+(e?' merr':m?' mok':'');}
+
+async function assignUPE(){
+  const st=document.getElementById('inp-st').value.trim().toUpperCase();
+  const upe=document.getElementById('inp-upe').value.trim().toUpperCase();
+  const pctIni=parseInt(document.getElementById('inp-pct-ini').value)||settings.pctIni;
+  const pctFin=parseInt(document.getElementById('inp-pct-fin').value)||settings.pctFin;
+  const esLoco=document.getElementById('chk-loco').checked;
+  const etiqueta=document.getElementById('sel-etiqueta').value;
+  if(!st){setMsg('Indica una estación',true);return;}
+  if(!stations[st]){setMsg('Estación no existe: '+st,true);return;}
+  if(!upe){setMsg('Indica el ID de la batería',true);return;}
+
+  const turnoActual=getTurnoActual();
+  const prev=assignments[st];
+
+  // Cerrar ciclo anterior localmente
+  if(prev&&prev.upe_id&&prev.timestamp){
+    cerrarCicloLocal(prev);
+  }
+
+  assignments[st]={
+    upe_id:upe, timestamp:tsISO(), turno:turnoActual,
+    pct_inicio:pctIni, pct_fin:pctFin,
+    locomotion:esLoco, etiqueta:etiqueta||''
+  };
+  // Mover batería nueva de cargadas → operación (sacar del almacén cargado)
+  if(inventory.c.includes(upe)){
+    inventory.c=inventory.c.filter(x=>x!==upe);
+    await apiPost({action:'inventario_remove',upe_id:upe});
+  }
+  // Mover batería anterior → descargadas
+  if(prev&&prev.upe_id){
+    if(!inventory.d.includes(prev.upe_id)) inventory.d.push(prev.upe_id);
+    await apiPost({action:'inventario_add',upe_id:prev.upe_id,estado:'d'});
+  }
+  saveLocal();
+  const locoTag=esLoco?'🚂':'';
+  const etqTag=etiqueta?` [${etiqueta}]`:'';
+  addLog(st+': '+upe+' '+locoTag+' ['+turnoActual+'] '+pctIni+'%→'+pctFin+'%'+etqTag);
+  renderMain();renderTable();renderAlertas();renderPromedios();
+  setMsg('Sincronizando...');dis(true);
+  try {
+    const r=await apiPost({action:'asignar',estacion:st,upe_id:upe,pct_inicio:pctIni,pct_fin:pctFin,locomotion:esLoco,etiqueta:etiqueta||''});
+    if (r && !r.ok) {
+      setMsg('⚠️ Guardado local, pero error en la nube: ' + (r.error || 'desconocido'), true);
+    } else {
+      setMsg(r.ok ? '✓ ' + upe + ' → ' + st + ' [' + turnoActual + ']' : '✓ Guardado local');
+    }
+  } catch(e) {
+    setMsg('⚠️ Guardado local, falló sincronización: ' + e.message, true);
+  } finally {
+    setSS('ok', 'Última sincronización: ' + ts());
+    dis(false);
+  }
+  document.getElementById('inp-upe').value='';
+  document.getElementById('chk-loco').checked=false;
+  document.getElementById('sel-etiqueta').value='';
+  clearBatWarning();
+  hideAutocomplete();
+  onLocoChange();
+}
+
+async function clearStation(){
+  const st=selSt||document.getElementById('inp-st').value.trim().toUpperCase();
+  if(!st||!stations[st]){setMsg('Selecciona una estación',true);return;}
+  if(!assignments[st]||!assignments[st].upe_id){setMsg(st+' ya está libre',true);return;}
+  const prev=assignments[st];
+  const pctFin=parseInt(document.getElementById('inp-pct-fin').value)||settings.pctFin;
+  cerrarCicloLocal({...prev, pct_fin:pctFin});
+  delete assignments[st];
+  // Mover batería liberada → descargadas
+  if(prev.upe_id && !inventory.d.includes(prev.upe_id)){
+    inventory.d.push(prev.upe_id);
+    apiPost({action:'inventario_add',upe_id:prev.upe_id,estado:'d'});
+  }
+  saveLocal();
+  addLog(st+': liberada ('+prev.upe_id+')');
+  renderMain();renderTable();renderAlertas();renderPromedios();
+  setMsg('Liberando...');dis(true);
+  try {
+    await apiPost({action:'liberar',estacion:st,pct_fin:pctFin});
+    setMsg('✓ ' + st + ' liberada');
+  } catch(e) {
+    setMsg('⚠️ Liberada local, error en nube: ' + e.message, true);
+  } finally {
+    setSS('ok', 'Última sincronización: ' + ts());
+    dis(false);
+  }
+}
+
+// ══ TABLA ══
+function renderTable(){
+  const tb=document.getElementById('tbody');tb.innerHTML='';
+  Object.keys(stations).sort().forEach(id=>{
+    const asgn=assignments[id];
+    const u=asgn&&asgn.upe_id?asgn.upe_id:null;
+    const pct=u?estimarPorcentaje(id):null;
+    const hora=u?estimarHoraCambio(id):null;
+    const pctColor=pct===null?'#888':pct<=settings.alerta?'#EA4335':pct<=40?'#FBBC04':'#34A853';
+    const turno=asgn&&asgn.turno?asgn.turno:'—';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="font-weight:500">${id}</td>
+      <td><span class="bdg ${u?'bu':'bf'}">${u?'Con UPE':'Libre'}</span></td>
+      <td>${u||'—'}</td>
+      <td><span class="turno-pill ${turnoColor(turno)}">${turno}</span></td>
+      <td style="color:${pctColor};font-weight:500">${pct!==null?Math.round(pct)+'%':'—'}</td>
+      <td style="font-size:12px">${hora?'~'+hora:'—'}</td>
+      <td><button class="bsm ${u?'bdanger':''}" onclick="${u?`clrById('${id}')`:`selGo('${id}')`}">${u?'Liberar':'Asignar'}</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+
+async function clrById(id){
+  if(!assignments[id]||!assignments[id].upe_id)return;
+  const prev=assignments[id];
+  cerrarCicloLocal(prev);
+  delete assignments[id];saveLocal();addLog(id+': liberada');
+  if(selSt===id)selSt=null;
+  renderMain();renderTable();renderAlertas();renderPromedios();
+  await apiPost({action:'liberar',estacion:id});setSS('ok','Sincronizado · '+ts());
+}
+
+function selGo(id){selSt=id;document.getElementById('inp-st').value=id;sw('croquis',document.getElementById('tab-croquis'));}
+
+// ══ ALMACÉN ══
+async function addBat(t){
+  const inp=document.getElementById('iadd-'+t);
+  const v=inp.value.trim().toUpperCase();
+  if(!v)return;
+  if(!inventory[t])inventory[t]=[];
+  if(inventory[t].includes(v)){inp.value='';return;}
+  inventory[t].push(v);saveLocal();inp.value='';
+  addLog('Almacén: '+v+' → '+(t==='c'?'cargada':'descargada'));renderInv();
+  await apiPost({action:'inventario_add',upe_id:v,estado:t});setSS('ok','Sincronizado · '+ts());
+}
+
+async function remBat(t,id){
+  inventory[t]=inventory[t].filter(x=>x!==id);saveLocal();addLog('Almacén: '+id+' eliminada');renderInv();
+  await apiPost({action:'inventario_remove',upe_id:id});
+}
+
+async function movBat(f,to,id){
+  inventory[f]=inventory[f].filter(x=>x!==id);
+  if(!inventory[to].includes(id))inventory[to].push(id);
+  saveLocal();addLog('Almacén: '+id+' → '+(to==='c'?'cargada':'descargada'));renderInv();
+  await apiPost({action:'inventario_move',upe_id:id,estado:to});setSS('ok','Sincronizado · '+ts());
+}
+
+async function swapAllDischarged(){
+  if(!inventory.d||!inventory.d.length){alert('No hay baterías descargadas');return;}
+  const lista=[...inventory.d];
+  for(const id of lista){
+    inventory.d=inventory.d.filter(x=>x!==id);
+    if(!inventory.c.includes(id))inventory.c.push(id);
+    await apiPost({action:'inventario_move',upe_id:id,estado:'c'});
+  }
+  saveLocal();addLog('Almacén: '+lista.length+' baterías marcadas como cargadas');renderInv();
+  setSS('ok','Sincronizado · '+ts());
+}
+
+function renderInv(){
+  // Columna operación: baterías actualmente asignadas
+  const enOp=Object.values(assignments).filter(a=>a&&a.upe_id).map(a=>a.upe_id);
+  document.getElementById('cnt-op').textContent=enOp.length;
+  const lop=document.getElementById('list-op');
+  if(!enOp.length){lop.innerHTML='<div style="font-size:11px;color:#AAA;padding:4px 0">Ninguna en operación</div>';}
+  else{
+    lop.innerHTML=enOp.map(id=>{
+      const tipo=getTipoBat(id);
+      const tipoCls=tipo?`bat-tipo-${tipo}`:'';
+      const est=Object.keys(assignments).find(k=>assignments[k]&&assignments[k].upe_id===id)||'';
+      return `<div class="bi"><span>${id} <span class="tipo-badge ${tipoCls}">${tipo||'?'}</span></span><span style="font-size:10px;color:#888">${est}</span></div>`;
+    }).join('');
+  }
+
+  ['c','d'].forEach(t=>{
+    const a=inventory[t]||[];
+    document.getElementById('cnt-'+t).textContent=a.length;
+    const l=document.getElementById('list-'+t);
+    if(!a.length){l.innerHTML='<div style="font-size:11px;color:#AAA;padding:4px 0">Sin baterías</div>';return;}
+    const o=t==='c'?'d':'c';
+    l.innerHTML=a.map(id=>{
+      const tipo=getTipoBat(id);
+      const tipoCls=tipo?`bat-tipo-${tipo}`:'';
+      return `<div class="bi">
+        <span>${id} <span class="tipo-badge ${tipoCls}">${tipo||'?'}</span></span>
+        <div style="display:flex;gap:4px">
+          <button class="bsm" onclick="movBat('${t}','${o}','${id}')" title="${t==='c'?'→ Descargada':'→ Cargada'}">${t==='c'?'↓':'↑'}</button>
+          <button class="bsm bdanger" onclick="remBat('${t}','${id}')">✕</button>
+        </div></div>`;
+    }).join('');
+  });
+}
+
+// ══ LOG ══
+function renderLog(){
+  const el=document.getElementById('loglist');
+  if(!log.length){el.innerHTML='<div style="font-size:11px;color:#AAA">Sin registros</div>';return;}
+  el.innerHTML=log.map(e=>'<div class="loge">'+e+'</div>').join('');
+}
+
+// ══ IMAGEN ══
+function loadImg(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{bgUrl=ev.target.result;saveLocal();applyBg();document.getElementById('iinfo').style.display='flex';document.getElementById('iname').textContent='📄 '+f.name;document.getElementById('uzlbl').style.display='none';addLog('Plano: '+f.name);};
+  r.readAsDataURL(f);
+}
+function applyBg(){
+  ['main','edit'].forEach(s=>{
+    const img=document.getElementById('bg-'+s),no=document.getElementById('noi-'+s);
+    if(bgUrl){img.setAttribute('href',bgUrl);img.style.display='';if(no)no.style.display='none';}
+    else{img.style.display='none';if(no)no.style.display='';}
+  });
+}
+function clearImg(){bgUrl=null;saveLocal();applyBg();document.getElementById('iinfo').style.display='none';document.getElementById('uzlbl').style.display='';document.getElementById('fileinp').value='';}
+
+// ══ EDITOR ══
+function svgPt(e,svg){const r=svg.getBoundingClientRect(),vb=svg.viewBox.baseVal;return{x:Math.round((e.clientX-r.left)/r.width*vb.width),y:Math.round((e.clientY-r.top)/r.height*vb.height)};}
+function onDown(e,id){
+  e.preventDefault();e.stopPropagation();
+  if(eMode==='del'){if(confirm('¿Eliminar '+id+'?')){delete stations[id];delete assignments[id];disabledStations.delete(id);saveLocal();addLog('Eliminada: '+id);renderEdit();renderMain();renderTable();}return;}
+  if(eMode==='rename'){eSel=id;document.getElementById('rsel').textContent=id;document.getElementById('inp-rn').value='';renderEdit();return;}
+  if(eMode==='disable'){toggleDisable(id);return;}
+  if(eMode==='machine'){eSel=id;document.getElementById('mach-sel-lbl').textContent=id;document.getElementById('frm-machine').style.display='flex';renderEdit();return;}
+  if(eMode==='move'){eSel=id;drag=true;const p=svgPt(e,document.getElementById('svg-edit'));dOff={x:p.x-stations[id].x,y:p.y-stations[id].y};renderEdit();}
+}
+function applyRename(){
+  if(!eSel)return;
+  const nid=document.getElementById('inp-rn').value.trim().toUpperCase();
+  if(!nid||nid===eSel)return;
+  if(stations[nid]){alert('Ya existe: '+nid);return;}
+  stations[nid]=stations[eSel];delete stations[eSel];
+  if(assignments[eSel]){assignments[nid]=assignments[eSel];delete assignments[eSel];}
+  addLog('Renombrada: '+eSel+' → '+nid);eSel=null;saveLocal();renderEdit();renderMain();renderTable();
+}
+function setupEdit(){
+  const svg=document.getElementById('svg-edit');
+  svg.onmousemove=e=>{if(!drag||!eSel)return;const p=svgPt(e,svg);stations[eSel].x=p.x-dOff.x;stations[eSel].y=p.y-dOff.y;renderEdit();};
+  svg.onmouseup=()=>{if(drag&&eSel){saveLocal();renderMain();}drag=false;};
+  svg.onmouseleave=()=>{if(drag&&eSel){saveLocal();renderMain();}drag=false;};
+  svg.onclick=e=>{
+    if(eMode!=='add')return;
+    if(e.target.tagName==='circle'||e.target.tagName==='text')return;
+    const nid=document.getElementById('inp-nid').value.trim().toUpperCase();
+    if(!nid){alert('Escribe el ID primero');return;}
+    if(stations[nid]){alert('Ya existe: '+nid);return;}
+    const p=svgPt(e,svg);stations[nid]={x:p.x,y:p.y};saveLocal();
+    document.getElementById('inp-nid').value='';addLog('Agregada: '+nid);
+    renderEdit();renderMain();renderTable();
+  };
+}
+
+// drag-drop imagen
+const uz=document.getElementById('uzlbl');
+uz.addEventListener('dragover',e=>{e.preventDefault();uz.style.borderColor='#1D1D1F';});
+uz.addEventListener('dragleave',()=>{uz.style.borderColor='';});
+uz.addEventListener('drop',e=>{e.preventDefault();uz.style.borderColor='';const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))loadImg({target:{files:[f]}});});
+
+// ══ SETTINGS UI ══
+function loadSettingsUI(){
+  const safe=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val;};
+  const safeT=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
+  safe('set-pct-fin',settings.pctFin);
+  safe('set-pct-ini',settings.pctIni);
+  safe('set-alerta',settings.alerta);
+  safe('set-prom-normal',settings.promNormal||0);
+  safe('set-prom-loco',settings.promLoco||0);
+  safe('set-min-ciclos',settings.minCiclos||5);
+  safeT('min-ciclos-lbl',settings.minCiclos||5);
+  safe('set-api',settings.api||DEFAULT_API);
+}
+
+function saveSettings(){
+  const gi=(id,def)=>{const el=document.getElementById(id);return el?parseInt(el.value)||def:def;};
+  // Guardar valores sin tocar assignments
+  settings.pctFin    = gi('set-pct-fin',10);
+  settings.pctIni    = gi('set-pct-ini',100);
+  settings.alerta    = gi('set-alerta',20);
+  settings.promNormal= gi('set-prom-normal',0);
+  settings.promLoco  = gi('set-prom-loco',0);
+  settings.minCiclos = gi('set-min-ciclos',5);
+  // Campos por tipo (pueden no existir si no están en el HTML)
+  const pAN=document.getElementById('set-prom-A-normal');if(pAN) settings.promANormal=parseInt(pAN.value)||0;
+  const pAL=document.getElementById('set-prom-A-loco');if(pAL)  settings.promALoco=parseInt(pAL.value)||0;
+  const pON=document.getElementById('set-prom-O-normal');if(pON) settings.promONormal=parseInt(pON.value)||0;
+  const pOL=document.getElementById('set-prom-O-loco');if(pOL)  settings.promOLoco=parseInt(pOL.value)||0;
+
+  const lbl=document.getElementById('min-ciclos-lbl');if(lbl)lbl.textContent=settings.minCiclos;
+  const pfi=document.getElementById('inp-pct-fin');if(pfi)pfi.value=settings.pctFin;
+  const pii=document.getElementById('inp-pct-ini');if(pii)pii.value=settings.pctIni;
+
+  // Solo re-renderizar estimados, NO tocar assignments ni hacer sync
+  saveLocal();
+  renderAlertas();
+  renderTable();
+  renderOpTable();
+  if(typeof onLocoChange==='function') onLocoChange();
+
+  // Publicar a Sheets en segundo plano
+  const msg=document.getElementById('settings-msg');
+  if(msg){msg.textContent='Guardando...';msg.className='smsg';}
+  publicarSettings().then(()=>{
+    if(msg){msg.textContent='✓ Ajustes guardados y publicados';msg.className='smsg mok';}
+    setTimeout(()=>{if(msg)msg.textContent='';},3000);
+  }).catch(()=>{
+    if(msg){msg.textContent='✓ Guardado local (sin conexión)';msg.className='smsg';}
+    setTimeout(()=>{if(msg)msg.textContent='';},3000);
+  });
+}
+
+async function publicarSettings(){
+  // Publicar todo excepto la URL de API (es local por PC)
+  const {api, ...settingsParaPublicar} = settings;
+  try{
+    await apiPost({action:'guardar_settings', settings:settingsParaPublicar});
+  }catch(e){/* silencioso */}
+}
+
+async function bajarAjustes(){
+  const m=document.getElementById('api-msg');
+  if(m){m.textContent='Bajando ajustes...';m.className='smsg';}
+  try{
+    const res=await fetch(settings.api+'?action=all&t='+Date.now());
+    const data=await res.json();
+    if(!data.ok) throw new Error(data.error||'Error');
+    if(data.settings){
+      const apiGuardada=settings.api;
+      settings={...settings,...data.settings};
+      settings.api=apiGuardada;
+      saveLocal();
+      loadSettingsUI();
+      if(m){m.textContent='✓ Ajustes bajados del servidor';m.className='smsg mok';}
+    } else {
+      if(m){m.textContent='El servidor no tiene ajustes guardados aún';m.className='smsg';}
+    }
+  }catch(e){
+    if(m){m.textContent='Error: '+e.message;m.className='smsg merr';}
+  }
+  setTimeout(()=>{if(m)m.textContent='';},4000);
+}
+
+function saveApiUrl(){
+  const el=document.getElementById('set-api');if(!el)return;
+  const url=el.value.trim();
+  if(url){
+    settings.api=url;
+    saveLocal();
+    const m=document.getElementById('api-msg');
+    if(m){m.textContent='✓ URL guardada (solo en esta PC)';m.className='smsg mok';}
+    setTimeout(()=>{if(m)m.textContent='';},3000);
+  }
+}
+
+function mostrarDiagnostico(){
+  const panel=document.getElementById('diag-panel');
+  if(!panel) return;
+  panel.style.display='block';
+  const ahora=new Date();
+  const rows=Object.entries(assignments)
+    .filter(([k,v])=>v&&v.upe_id)
+    .sort(([a],[b])=>a.localeCompare(b))
+    .map(([est,asgn])=>{
+      const ts=parseTS(asgn.timestamp);
+      const minutos=ts?Math.round((ahora-ts)/60000):null;
+      const efec=Math.round(calcEfectivo(asgn.timestamp,ahora.toISOString()));
+      const tsValido=ts?'✓':'❌ INVÁLIDO';
+      return `<div style="padding:3px 0;border-bottom:1px solid #E0E0E0">
+        <b>${est}</b> → ${asgn.upe_id} | ${tsValido} | ${asgn.timestamp||'sin timestamp'}
+        | Total: ${minutos!==null?minutos:'?'} min | Efectivo: ${efec} min
+      </div>`;
+    });
+  panel.innerHTML=rows.length
+    ?rows.join('')
+    :'<div style="color:#AAA;padding:8px">No hay estaciones con baterías asignadas</div>';
+}
+
+// ══ DISABLED STATIONS ══
+function toggleDisable(id){
+  if(disabledStations.has(id)){disabledStations.delete(id);addLog('Habilitada: '+id);}
+  else{disabledStations.add(id);addLog('Deshabilitada: '+id);}
+  saveLocal();renderEdit();renderMain();renderTable();
+}
+
+// ══ AUTOCOMPLETE + VALIDACIÓN BATERÍA ══
+function getAllBatIds(){
+  const all=new Set([...(inventory.c||[]),...(inventory.d||[])]);
+  Object.values(assignments).forEach(a=>{if(a&&a.upe_id)all.add(a.upe_id);});
+  return [...all].sort();
+}
+
+// Devuelve objeto con el estado de una batería
+function getBatStatus(id){
+  // ¿En qué estación está asignada?
+  const estacionActual=Object.entries(assignments).find(([k,v])=>v&&v.upe_id===id);
+  const enCargadas=(inventory.c||[]).includes(id);
+  const enDescargadas=(inventory.d||[]).includes(id);
+  return {
+    enOperacion:  estacionActual ? estacionActual[0] : null,
+    enCargadas,
+    enDescargadas,
+    enInventario: enCargadas||enDescargadas,
+    esNueva:      !estacionActual&&!enCargadas&&!enDescargadas
+  };
+}
+
+function onBatInput(inp){
+  const val=inp.value.toUpperCase();
+  inp.value=val;
+  const list=document.getElementById('ac-list');
+  clearBatWarning();
+
+  if(!val){list.style.display='none';return;}
+
+  const isDigits=/^\d+$/.test(val);
+  const all=getAllBatIds();
+
+  let matches=isDigits
+    ?all.filter(id=>id.slice(1).startsWith(val)||id.startsWith(val))
+    :all.filter(id=>id.startsWith(val));
+
+  // Si solo dígitos y no hay matches, sugerir ambos prefijos
+  if(isDigits&&!matches.length){
+    const pad=val.padStart(5,'0');
+    matches=['A'+pad,'O'+pad];
+  }
+
+  if(!matches.length){list.style.display='none';return;}
+
+  list.innerHTML=matches.slice(0,8).map(id=>{
+    const s=getBatStatus(id);
+    const tipo=id[0]==='A'?'🟣 Bluetti':id[0]==='O'?'🟢 OUPES':'';
+    const bold=`<b>${id.slice(0,val.length)}</b>${id.slice(val.length)}`;
+    let badge='', badgeColor='#888';
+    if(s.enOperacion){
+      badge=`⚠ En uso (${s.enOperacion})`;badgeColor='#EA4335';
+    } else if(s.enCargadas){
+      badge='⚡ Cargada';badgeColor='#137333';
+    } else if(s.enDescargadas){
+      badge='🔋 Descargada';badgeColor='#B06000';
+    } else {
+      badge='Nueva';badgeColor='#1A73E8';
+    }
+    return `<div class="autocomplete-item" onclick="selectBatVal('${id}')">
+      <span>${bold} <span style="font-size:10px;color:#888">${tipo}</span></span>
+      <span style="font-size:10px;color:${badgeColor};float:right">${badge}</span>
+    </div>`;
+  }).join('');
+  list.style.display='block';
+}
+
+function selectBatVal(id){
+  document.getElementById('inp-upe').value=id;
+  hideAutocomplete();
+  validateBat(id);
+}
+
+// Valida la batería seleccionada/escrita y muestra advertencias
+function validateBat(id){
+  if(!id){clearBatWarning();return;}
+  const estSel=document.getElementById('inp-st').value.trim().toUpperCase();
+  const s=getBatStatus(id);
+  const warnEl=document.getElementById('bat-warning');
+  const btnA=document.getElementById('btn-a');
+  if(!warnEl)return;
+
+  if(s.enOperacion && s.enOperacion!==estSel){
+    // Duplicado real: está en otra estación
+    warnEl.innerHTML=`⚠ <b>${id}</b> ya está asignada en <b>${s.enOperacion}</b>. Confirma si realmente quieres moverla.`;
+    warnEl.style.display='block';
+    warnEl.style.background='#FDE8E8';
+    warnEl.style.borderColor='#F5C6C6';
+    warnEl.style.color='#C5221F';
+    if(btnA) btnA.textContent='Asignar de todas formas';
+  } else if(s.enOperacion && s.enOperacion===estSel){
+    // Ya está en esta misma estación
+    warnEl.innerHTML=`ℹ <b>${id}</b> ya está asignada a esta estación.`;
+    warnEl.style.display='block';
+    warnEl.style.background='#E8F0FE';
+    warnEl.style.borderColor='#C5DCF5';
+    warnEl.style.color='#1A73E8';
+    if(btnA){btnA.disabled=true;btnA.textContent='Ya asignada';}
+  } else if(s.enDescargadas){
+    warnEl.innerHTML=`⚠ <b>${id}</b> está marcada como <b>descargada</b>. ¿Confirmas que está cargada?`;
+    warnEl.style.display='block';
+    warnEl.style.background='#FEF3E2';
+    warnEl.style.borderColor='#F5DFA6';
+    warnEl.style.color='#B06000';
+    if(btnA){btnA.disabled=false;btnA.textContent='Registrar asignación';}
+  } else if(s.esNueva){
+    warnEl.innerHTML=`ℹ <b>${id}</b> es nueva — se agregará al inventario como descargada al terminar el ciclo.`;
+    warnEl.style.display='block';
+    warnEl.style.background='#E8F0FE';
+    warnEl.style.borderColor='#C5DCF5';
+    warnEl.style.color='#1A73E8';
+    if(btnA){btnA.disabled=false;btnA.textContent='Registrar asignación';}
+  } else {
+    clearBatWarning();
+  }
+}
+
+function clearBatWarning(){
+  const warnEl=document.getElementById('bat-warning');
+  const btnA=document.getElementById('btn-a');
+  if(warnEl)warnEl.style.display='none';
+  if(btnA){btnA.disabled=false;btnA.textContent='Registrar asignación';}
+}
+
+function hideAutocomplete(){
+  const l=document.getElementById('ac-list');if(l)l.style.display='none';
+  const l2=document.getElementById('upe-autocomplete');if(l2)l2.style.display='none';
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.ac-wrap')&&!e.target.closest('.autocomplete-wrap'))hideAutocomplete();
+});
+
+function getOperadorByEscenario(esc){
+  const op=(operadores||[]).find(o=>(o.escenario||o.Escenario||'').toUpperCase()===esc.toUpperCase());
+  return op?(op.operador||op.Operador||'—'):'—';
+}
+
+function setEstadoBat(esc,estado){if(assignments[esc]){assignments[esc]._estado=estado;saveLocal();}}
+
+// ══ CONTROL CAMBIOS ══
+function renderCambios(){
+  const tbody=document.getElementById('cambios-tbody');if(!tbody)return;
+  if(!cambiosBat||!cambiosBat.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:#AAA;padding:12px">Sin cambios registrados aún</td></td>';return;}
+  tbody.innerHTML=cambiosBat.slice(0,50).map(c=>`<tr>
+    <td style="font-size:11px;white-space:nowrap">${c.hora}</td>
+    <td>${c.estacion}</td>
+    <td>${c.maquina||'—'}</td>
+    <td style="color:#888">${c.batAnterior}</td>
+    <td style="font-weight:500;color:#137333">${c.batNueva}</td>
+    <td>${c.operador||'—'}</td>
+    <td><span class="turno-pill ${turnoColor(c.turno)}">${c.turno}</span></td>
+  </tr>`).join('');
+}
+
+// ══ OPERADORES CRUD ══
+let opEditIdx=null;
+
+function syncOperadores(){
+  const lbl=document.getElementById('op-sync-lbl');
+  const dot=document.getElementById('op-sdot');
+  if(lbl)lbl.textContent='Cargando desde Sheets...';
+  if(dot){dot.style.background='#FBBC04';dot.style.animation='blink .7s infinite alternate';}
+  fetch(settings.api+'?action=operadores&t='+Date.now())
+    .then(r=>r.json())
+    .then(data=>{
+      if(data.ok&&data.operadores){
+        operadores=data.operadores;saveLocal();
+        if(lbl)lbl.textContent='Actualizado · '+ts();
+        if(dot){dot.style.background='#34A853';dot.style.animation='';}
+        renderOpTable();
+      } else {
+        if(lbl)lbl.textContent='Sin datos en hoja Operadores';
+        if(dot){dot.style.background='#EA4335';dot.style.animation='';}
+      }
+    })
+    .catch(()=>{
+      if(lbl)lbl.textContent='Usando datos locales';
+      if(dot){dot.style.background='#888';dot.style.animation='';}
+      renderOpTable();
+    });
+}
+
+function normEsc(s){return (s||'').replace(/\s+/g,'').toUpperCase();}
+function getVal(op,keys){for(const k of keys){if(op[k]!==undefined&&op[k]!=='')return op[k];}return '';}
+
+function renderOpTable(){
+  const tbody=document.getElementById('op-tbody');if(!tbody)return;
+  const fl=((document.getElementById('op-filter')||{}).value||'').toLowerCase();
+  const rows=[];
+
+  (operadores||[]).forEach((op,idx)=>{
+    const esc=normEsc(getVal(op,['escenario','Escenario']));
+    const maq=getVal(op,['maquina','Maquina'])||'—';
+    const oper=getVal(op,['operador','Operador'])||'—';
+    const turnoOp=getVal(op,['turno','Turno'])||'—';
+    const asgn=assignments[esc]||null;
+    rows.push({esc,maq,oper,turnoOp,asgn,
+      pct:asgn?estimarPorcentaje(esc):null,
+      hora:asgn?estimarHoraCambio(esc):null,
+      idx,disabled:disabledStations.has(esc)});
+  });
+  // Estaciones activas sin fila de operadores
+  Object.entries(assignments).forEach(([esc,asgn])=>{
+    if(!asgn||!asgn.upe_id)return;
+    if((operadores||[]).find(o=>normEsc(getVal(o,['escenario','Escenario']))===esc))return;
+    rows.push({esc,maq:'—',oper:'—',turnoOp:'—',asgn,
+      pct:estimarPorcentaje(esc),hora:estimarHoraCambio(esc),
+      idx:-1,disabled:disabledStations.has(esc)});
+  });
+
+  const filtered=fl
+    ?rows.filter(r=>`${r.maq} ${r.oper} ${r.esc}`.toLowerCase().includes(fl))
+    :rows;
+
+  if(!filtered.length){
+    tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;color:#AAA;padding:28px;font-size:13px">
+      Sin datos — haz clic en <b>↻ Cargar desde Sheets</b> o <b>+ Nueva fila</b>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML=filtered.map(({esc,maq,oper,turnoOp,asgn,pct,hora,idx,disabled})=>{
+    const pctColor=pct===null?'#888':pct<=settings.alerta?'#EA4335':pct<=40?'#FBBC04':'#34A853';
+    const pctVal=pct!==null?Math.round(pct):null;
+    const est=asgn?(asgn._estado||'en-uso'):'libre';
+
+    // Estado dropdown
+    const estOpts=[
+      {v:'en-uso',l:'En uso'},{v:'cambio',l:'Cambio'},
+      {v:'carga',l:'Cargando'},{v:'sombra',l:'Sombra'}];
+    const estSel=estOpts.map(o=>
+      `<option value="${o.v}" ${est===o.v?'selected':''}>${o.l}</option>`).join('');
+
+    // Turno pill color
+    const tBg=turnoOp==='mañana'?'#FEF3E2':turnoOp==='tarde'?'#E8F0FE':turnoOp==='noche'?'#EDE7F6':'#F0F0F0';
+    const tFg=turnoOp==='mañana'?'#B06000':turnoOp==='tarde'?'#1A73E8':turnoOp==='noche'?'#5E35B1':'#888';
+
+    const editBtns=idx>=0
+      ?`<button class="bsm" onclick="abrirModalOp(${idx},event)">✎</button>
+        <button class="bsm bdanger" onclick="eliminarFilaOp(${idx})">✕</button>`
+      :'';
+
+    return `<tr style="${disabled?'opacity:.45':''}">
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
+        <span style="display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;background:#E6F4EA;color:#137333">${maq}</span>
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-weight:500">${esc||'—'}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
+        ${asgn&&asgn.upe_id
+          ?`<select class="op-sel est-${est}"
+              onchange="setEstadoBat('${esc}',this.value);this.className='op-sel est-'+this.value">
+              ${estSel}
+            </select>`
+          :'<span style="color:#AAA;font-size:12px">Libre</span>'}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
+        ${pctVal!==null
+          ?`<div style="color:${pctColor};font-weight:700;font-size:13px">${pctVal}%</div>
+            <div style="height:4px;background:#E0E0E0;border-radius:2px;margin-top:3px;width:60px">
+              <div style="height:100%;border-radius:2px;background:${pctColor};width:${pctVal}%"></div>
+            </div>`
+          :'<span style="color:#AAA">—</span>'}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-size:12px;color:#444">
+        ${asgn&&asgn.upe_id?asgn.upe_id:'<span style="color:#AAA">—</span>'}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-size:12px">
+        ${hora?'<span style="color:#1A73E8">~'+hora+'</span>':'<span style="color:#AAA">—</span>'}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">${oper}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
+        <span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:500;background:${tBg};color:${tFg}">${turnoOp}</span>
+      </td>
+      <td style="padding:8px 6px;border-bottom:1px solid #F5F5F5;white-space:nowrap">${editBtns}</td>
+    </tr>`;
+  }).join('');
+}
+
+function abrirModalOp(idx, event){
+  if(event) event.stopPropagation();
+  opEditIdx=idx;
+  const modal=document.getElementById('op-modal');if(!modal)return;
+  const title=document.getElementById('op-modal-title');
+  const msg=document.getElementById('op-modal-msg');
+  if(msg){msg.textContent='';msg.className='smsg';}
+  if(idx===null){
+    if(title)title.textContent='Nueva fila';
+    document.getElementById('op-m-maquina').value='';
+    document.getElementById('op-m-escenario').value='';
+    document.getElementById('op-m-operador').value='';
+    document.getElementById('op-m-turno').value='tarde';
+  } else {
+    if(title)title.textContent='Editar fila';
+    const op=operadores[idx];if(!op)return;
+    document.getElementById('op-m-maquina').value=getVal(op,['maquina','Maquina']);
+    document.getElementById('op-m-escenario').value=normEsc(getVal(op,['escenario','Escenario']));
+    document.getElementById('op-m-operador').value=getVal(op,['operador','Operador']);
+    const turnoVal=getVal(op,['turno','Turno']);
+    document.getElementById('op-m-turno').value=['mañana','tarde','noche'].includes(turnoVal)?turnoVal:'tarde';
+  }
+  modal.style.display='flex';
+  // Evitar que el evento que abrió el modal lo cierre inmediatamente
+  modal._justOpened=true;
+  setTimeout(()=>{if(modal)modal._justOpened=false;},100);
+}
+
+function cerrarModalOp(){
+  const modal=document.getElementById('op-modal');
+  if(modal)modal.style.display='none';
+  opEditIdx=null;
+}
+
+async function guardarFilaOp(){
+  const msg=document.getElementById('op-modal-msg');
+  try{
+    const maq=document.getElementById('op-m-maquina').value.trim();
+    const esc=normEsc(document.getElementById('op-m-escenario').value.trim());
+    const oper=document.getElementById('op-m-operador').value.trim();
+    const turno=document.getElementById('op-m-turno').value;
+
+    if(!esc){
+      if(msg){msg.textContent='El escenario es obligatorio';msg.className='smsg merr';}
+      return;
+    }
+
+    const fila={maquina:maq, escenario:esc, operador:oper, turno:turno};
+
+    if(opEditIdx===null){
+      if(!operadores) operadores=[];
+      operadores.push(fila);
+    } else {
+      operadores[opEditIdx]=fila;
+    }
+
+    saveLocal();
+    renderOpTable();
+    if(msg){msg.textContent='Guardando en Sheets...';msg.className='smsg';}
+
+    const r=await apiPost({action:'guardar_operadores', operadores});
+    if(r&&r.ok){
+      if(msg){msg.textContent='✓ Guardado';msg.className='smsg mok';}
+      setTimeout(cerrarModalOp,700);
+    } else {
+      // Guardado local igual funciona
+      if(msg){msg.textContent='✓ Guardado local. Sheets: '+(r&&r.error||'sin respuesta');msg.className='smsg';}
+      setTimeout(cerrarModalOp,1500);
+    }
+  }catch(e){
+    console.error('guardarFilaOp error:',e);
+    if(msg){msg.textContent='Error: '+e.message;msg.className='smsg merr';}
+  }
+}
+
+async function eliminarFilaOp(idx){
+  if(!confirm('¿Eliminar esta fila?'))return;
+  operadores.splice(idx,1);saveLocal();renderOpTable();
+  try{await apiPost({action:'guardar_operadores',operadores});}catch(e){}
+}
+
+// ══ MANTENIMIENTO ══
+async function pushLocalToServer(){
+  const msg=document.getElementById('maint-msg');
+  if(!confirm('¿Publicar el estado actual de esta PC al servidor? Esto sobreescribirá las asignaciones del servidor.')) return;
+  if(msg){msg.textContent='Publicando...';msg.className='smsg';}
+  try{
+    // Publicar cada asignación local al servidor
+    const promesas=Object.entries(assignments).map(([est,asgn])=>{
+      if(!asgn||!asgn.upe_id) return Promise.resolve();
+      return apiPost({
+        action:'asignar_forzado',
+        estacion:est,
+        upe_id:asgn.upe_id,
+        timestamp:asgn.timestamp,
+        turno:asgn.turno||getTurnoActual(),
+        pct_inicio:asgn.pct_inicio||settings.pctIni,
+        pct_fin:asgn.pct_fin||settings.pctFin,
+        locomotion:asgn.locomotion||false,
+        etiqueta:asgn.etiqueta||''
+      });
+    });
+    await Promise.all(promesas);
+    if(msg){msg.textContent='✓ Estado publicado al servidor';msg.className='smsg mok';}
+    addLog('Estado local publicado al servidor forzadamente');
+  }catch(e){
+    if(msg){msg.textContent='Error: '+e.message;msg.className='smsg merr';}
+  }
+  setTimeout(()=>{if(msg)msg.textContent='';},4000);
+}
+
+async function limpiarServidor(){
+  const msg=document.getElementById('maint-msg');
+  if(!confirm('⚠ ¿Limpiar TODAS las asignaciones del servidor?\n\nLos datos locales de cada PC se conservan.')) return;
+  if(msg){msg.textContent='Limpiando...';msg.className='smsg';}
+  try{
+    const r=await apiPost({action:'limpiar_asignaciones'});
+    if(r&&r.ok){
+      if(msg){msg.textContent='✓ Servidor limpiado';msg.className='smsg mok';}
+      addLog('Servidor limpiado manualmente');
+    } else {
+      if(msg){msg.textContent='Error: '+(r&&r.error||'desconocido');msg.className='smsg merr';}
+    }
+  }catch(e){
+    if(msg){msg.textContent='Error: '+e.message;msg.className='smsg merr';}
+  }
+  setTimeout(()=>{if(msg)msg.textContent='';},4000);
+}
+
+function limpiarLocal(){
+  const msg=document.getElementById('maint-msg');
+  if(!confirm('¿Limpiar el caché local de esta PC?\n\nEl servidor y otras PCs no se verán afectados.')) return;
+  assignments={};
+  inventory={c:[],d:[]};
+  cambiosBat=[];
+  log=[];
+  saveLocal();
+  renderAll();
+  if(msg){msg.textContent='✓ Caché local limpiado';msg.className='smsg mok';}
+  addLog('Caché local limpiado');
+  setTimeout(()=>{if(msg)msg.textContent='';},3000);
+}
+
+// ══ TABS ══
+function sw(name,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  const v=document.getElementById('view-'+name);
+  if(v)v.classList.add('active');
+  if(btn)btn.classList.add('active');
+  if(name==='tabla')renderTable();
+  if(name==='almacen')renderInv();
+  if(name==='editar'){applyBg();renderEdit();setupEdit();actualizarSelectMaquinas();}
+  if(name==='ajustes'){renderPromedios();loadSettingsUI();renderMaquinas();}
+  if(name==='croquis'){renderMain();renderAlertas();}
+  if(name==='operacion'){renderOpTable();renderCambios();}
+}
+
+// ══ RELOJ Y TURNO ══
+function updateClock(){
+  const now=new Date();
+  const cl=document.getElementById('clock');if(cl)cl.textContent=now.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const t=getTurnoActual();
+  const badge=document.getElementById('turno-badge');
+  if(badge){badge.textContent='Turno '+t;badge.className='turno-badge '+turnoColor(t);}
+}
+
+// Cerrar modal al clic fuera, pero no si recién se abrió
+window.addEventListener('click',e=>{
+  const modal=document.getElementById('op-modal');
+  if(modal && modal.style.display==='flex' && !modal._justOpened && e.target===modal){
+    cerrarModalOp();
+  }
+});
+
+// ══ INIT ══
+loadLocal();
+applyBg();
+renderAll();
+setupEdit();
+loadSettingsUI();
+if(typeof renderEtiquetas==='function')renderEtiquetas();
+if(typeof syncSelectEtiquetas==='function')syncSelectEtiquetas();
+if(typeof onLocoChange==='function')onLocoChange();
+if(bgUrl){
+  const uzl=document.getElementById('uzlbl');if(uzl)uzl.style.display='none';
+  const ii=document.getElementById('iinfo');if(ii)ii.style.display='flex';
+  const in2=document.getElementById('iname');if(in2)in2.textContent='📄 Plano guardado';
+}
+const pfi=document.getElementById('inp-pct-fin');if(pfi)pfi.value=settings.pctFin;
+const pii=document.getElementById('inp-pct-ini');if(pii)pii.value=settings.pctIni;
+updateClock();
+setInterval(updateClock,1000);
+
+// ── AUTO-SYNC cada 5 minutos ──
+// Re-renderiza estimados cada minuto (sin llamar al servidor)
+setInterval(()=>{
+  renderMain();renderAlertas();renderTable();renderOpTable();
+},60000);
+
+// Sincroniza con Sheets cada 5 minutos
+let autoSyncInterval=null;
+function iniciarAutoSync(minutos=5){
+  if(autoSyncInterval) clearInterval(autoSyncInterval);
+  autoSyncInterval=setInterval(async()=>{
+    try{
+      await syncFromSheets(true); // silencioso
+      // Parpadeo verde en la barra para que se note
+      const dot=document.getElementById('sdot');
+      if(dot){
+        dot.style.background='#34A853';
+        setTimeout(()=>{},1000);
+      }
+    }catch(e){}
+  }, minutos*60*1000);
+}
+
+iniciarAutoSync(5); // cada 5 minutos
+
+// Sync inicial en segundo plano
+setTimeout(()=>syncFromSheets(true),500);
+setTimeout(()=>syncOperadores(),3000);
+</script>
+</body>
+</html>
