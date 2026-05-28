@@ -639,7 +639,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script>
 // ══ CONFIG ══
 const DEFAULT_API = "https://script.google.com/macros/s/AKfycbyJrb3otEXva6hHCPWD7-u64rqaBRsxCpF7BJ92CSSAnbJm4eJN-jC8vJUzVDhmTRmV/exec";
-// v5.8 — Fix duración batería proporcional al pctIni + persistencia multi-PC
+// URL del data.json en GitHub (lectura pública, sin auth)
+// GitHub añade cache de ~5 min; el ?t= lo rompe para forzar datos frescos
+const DATA_JSON_URL = "https://raw.githubusercontent.com/Prihor95/UPS_Tracker/main/data.json";
+// v5.9 — Fix duración batería proporcional al pctIni + persistencia multi-PC
 
 // ══ STATE ══
 let stations={}, assignments={}, inventory={c:[],d:[]}, log=[], bgUrl=null, promedios={};
@@ -683,17 +686,28 @@ function turnoColor(t){
   return {mañana:'turno-mañana',tarde:'turno-tarde',noche:'turno-noche',finde:'turno-finde'}[t]||'turno-finde';
 }
 
-// Calcula minutos efectivos descontando breaks entre dos timestamps (strings "yyyy-MM-dd HH:mm:ss")
-// Parsea timestamp en cualquier formato a Date
+// Parsea timestamp en cualquier formato a Date, siempre en hora de México (CDT -05:00 / CST -06:00)
+// Detecta automáticamente si es verano (CDT -05:00) o invierno (CST -06:00)
+function getMexOffset(dt){
+  // DST en México: segundo domingo de marzo al primer domingo de noviembre
+  const y=dt.getFullYear();
+  // Segundo domingo de marzo
+  const mar=new Date(y,2,1); mar.setDate(1+(7-mar.getDay())%7+7);
+  // Primer domingo de noviembre
+  const nov=new Date(y,10,1); nov.setDate(1+(7-nov.getDay())%7);
+  return (dt>=mar&&dt<nov)?'-05:00':'-06:00';
+}
+
 function parseTS(s){
   if(!s) return null;
   if(s instanceof Date) return isNaN(s.getTime())?null:s;
   let str=String(s).trim();
-  // "yyyy-MM-dd HH:mm:ss" → convertir a ISO compatible
-  if(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(str)){
+  // "yyyy-MM-dd HH:mm:ss" o "yyyy-MM-ddTHH:mm:ss" sin zona → agregar offset México
+  if(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(str)&&!/[Zz]|[+-]\d{2}:\d{2}$/.test(str)){
     str=str.replace(' ','T');
-    // Agregar offset de México si no tiene zona horaria
-    if(!/[Zz]|[+-]\d{2}:\d{2}$/.test(str)) str+='';
+    // Parsear provisionalmente para saber si es DST o no
+    const provisional=new Date(str+'Z'); // UTC temporal solo para calcular offset
+    str+=getMexOffset(provisional);
   }
   const d=new Date(str);
   return isNaN(d.getTime())?null:d;
@@ -759,7 +773,7 @@ function estimarPorcentaje(estacion){
   const esLoco=!!asgn.locomotion;
   const p=getPromedio(asgn.upe_id, esLoco);
   if(!p) return null;
-  const transcurrido=calcEfectivo(asgn.timestamp, new Date().toISOString().replace('T',' ').slice(0,19));
+  const transcurrido=calcEfectivo(asgn.timestamp, tsISO());
   const pctIni=asgn.pct_inicio||100;
   const pctFin=asgn.pct_fin||settings.pctFin;
   const rango=pctIni-pctFin;
@@ -778,7 +792,7 @@ function estimarHoraCambio(estacion){
   const esLoco=!!asgn.locomotion;
   const p=getPromedio(asgn.upe_id, esLoco);
   if(!p) return null;
-  const transcurrido=calcEfectivo(asgn.timestamp, new Date().toISOString().replace('T',' ').slice(0,19));
+  const transcurrido=calcEfectivo(asgn.timestamp, tsISO());
   const pctIni=asgn.pct_inicio||100;
   const pctFin=asgn.pct_fin||settings.pctFin;
   const rango=pctIni-pctFin;
@@ -1006,7 +1020,9 @@ function setSS(state,msg){
 async function syncFromSheets(silent=false){
   if(!silent) setSS('busy','Conectando...');
   try{
-    const res=await fetch(settings.api+'?action=all&t='+Date.now());
+    // Lee del data.json publicado en GitHub (rápido, sin CORS issues, público)
+    // Las escrituras siguen yendo al Apps Script vía apiPost
+    const res=await fetch(DATA_JSON_URL+'?t='+Date.now());
     const data=await res.json();
     if(!data.ok) throw new Error(data.error||'Error del servidor');
 
@@ -1093,7 +1109,15 @@ async function apiPost(body){
 
 // ══ TIEMPO ══
 function ts(){return new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});}
-function tsISO(){return new Date().toISOString().replace('T',' ').slice(0,19);}
+function tsISO(){
+  // Guarda en hora local de México con offset explícito para que parseTS sea consistente en todas las PCs
+  const now=new Date();
+  const off=getMexOffset(now); // '-05:00' o '-06:00'
+  const h=parseInt(off)<0?-1:1, abs=off.replace('-','').replace('+','');
+  const [hh,mm]=abs.split(':').map(Number);
+  const local=new Date(now.getTime()+(h*(hh*60+mm))*60000);
+  return local.toISOString().replace('T',' ').slice(0,19)+off;
+}
 function addLog(msg){log.unshift(ts()+' · '+msg);if(log.length>30)log.pop();saveLocal();renderLog();}
 
 // ══ DOTS ══
@@ -1207,7 +1231,7 @@ function showTT(e,id){
     const pct=estimarPorcentaje(id);
     const hora=estimarHoraCambio(id);
     const prom=getPromedio(asgn.upe_id,esLoco);
-    const transcurrido=calcEfectivo(asgn.timestamp,new Date().toISOString().replace('T',' ').slice(0,19));
+    const transcurrido=calcEfectivo(asgn.timestamp,tsISO());
     const tipo=getTipoBat(asgn.upe_id);
     const tipoLabel=tipo==='A'?'🟣 Bluetti AC189P':tipo==='O'?'🟢 OUPES 1800W':'';
     let html=`
@@ -1284,7 +1308,7 @@ function renderPromedios(){
 // Cierra un ciclo anterior actualizando promedios locales
 function cerrarCicloLocal(prev){
   if(!prev||!prev.upe_id||!prev.timestamp) return;
-  const durEfec=calcEfectivo(prev.timestamp, new Date().toISOString().replace('T',' ').slice(0,19));
+  const durEfec=calcEfectivo(prev.timestamp, tsISO());
   if(durEfec<=0) return;
   const etq=prev.etiqueta||'';
   const esLoco=!!prev.locomotion;
@@ -1693,7 +1717,9 @@ async function bajarAjustes(){
   const m=document.getElementById('api-msg');
   if(m){m.textContent='Bajando ajustes...';m.className='smsg';}
   try{
-    const res=await fetch(settings.api+'?action=all&t='+Date.now());
+    // Lee del data.json publicado en GitHub (rápido, sin CORS issues, público)
+    // Las escrituras siguen yendo al Apps Script vía apiPost
+    const res=await fetch(DATA_JSON_URL+'?t='+Date.now());
     const data=await res.json();
     if(!data.ok) throw new Error(data.error||'Error');
     if(data.settings){
