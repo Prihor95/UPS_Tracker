@@ -824,6 +824,9 @@ function loadLocal(){
   try{
     const s=JSON.parse(localStorage.getItem('upe_settings')||'{}');
     settings={...settings,...s};
+    // Si el localStorage guardó una URL vacía, restaurar el default
+    if(!settings.api || settings.api.indexOf('script.google.com')===-1)
+      settings.api=DEFAULT_API;
   }catch(e){}
 }
 
@@ -1057,9 +1060,9 @@ async function syncFromSheets(silent=false){
   try{
     // Lee directamente del Apps Script (doGet ?action=all) — sin depender de data.json en GitHub
     const apiUrl=settings.api;
-    if(!apiUrl||apiUrl.indexOf('script.google.com')===-1){
-      setSS('err','Configura la URL del Apps Script en Ajustes');
-      return;
+    // Si por alguna razón no hay API, usar el default
+    if(!apiUrl || apiUrl.indexOf('script.google.com')===-1){
+      settings.api=DEFAULT_API;
     }
     const res=await fetch(apiUrl+'?action=all&t='+Date.now(),{redirect:'follow'});
     const text=await res.text();
