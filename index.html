@@ -1159,9 +1159,19 @@ async function apiPost(body){
     const url=settings.api+'?payload='+encodeURIComponent(JSON.stringify(body))+'&t='+Date.now();
     const res=await fetch(url,{redirect:'follow'});
     const text=await res.text();
-    try{return JSON.parse(text);}
-    catch(e){return {ok:false,error:'Respuesta no-JSON: '+text.slice(0,200)};}
-  }catch(e){return {ok:false,error:e.message};}
+    try{
+      const json=JSON.parse(text);
+      if(!json.ok) console.warn('[apiPost] Servidor respondió ok:false →',json,'| action:',body.action);
+      return json;
+    }
+    catch(e){
+      console.error('[apiPost] Respuesta no-JSON para action:',body.action,'→',text.slice(0,300));
+      return {ok:false,error:'Respuesta no-JSON: '+text.slice(0,200)};
+    }
+  }catch(e){
+    console.error('[apiPost] Fetch falló para action:',body.action,'→',e.message);
+    return {ok:false,error:e.message};
+  }
 }
 
 // ══ TIEMPO ══
@@ -1492,12 +1502,18 @@ async function assignUPE(){
   try {
     const r=await apiPost({action:'asignar',estacion:st,upe_id:upe,pct_inicio:pctIni,pct_fin:pctFin,locomotion:esLoco,etiqueta:etiqueta||''});
     if (r && !r.ok) {
-      setMsg('⚠️ Guardado local, pero error en la nube: ' + (r.error || 'desconocido'), true);
+      setMsg('⚠️ Error en la nube: ' + (r.error || 'desconocido'), true);
+      console.error('[apiPost asignar] Error del servidor:', r);
+    } else if (r && r.ok) {
+      setMsg('✓ ' + upe + ' → ' + st + ' [' + (r.turno||turnoActual) + ']');
+      console.log('[apiPost asignar] OK:', r);
     } else {
-      setMsg(r.ok ? '✓ ' + upe + ' → ' + st + ' [' + turnoActual + ']' : '✓ Guardado local');
+      setMsg('⚠️ Respuesta inesperada del servidor', true);
+      console.error('[apiPost asignar] Respuesta inesperada:', r);
     }
   } catch(e) {
     setMsg('⚠️ Guardado local, falló sincronización: ' + e.message, true);
+    console.error('[apiPost asignar] Excepción:', e);
   } finally {
     setSS('ok', 'Última sincronización: ' + ts());
     dis(false);
