@@ -1087,9 +1087,10 @@ async function syncFromSheets(silent=false){
           // No hay nada local → usar servidor
           newAsgn[k]=v;
         } else if(local.upe_id===v.upe_id){
-          // Misma batería → conservar timestamp local (más confiable), merge del resto
+          // Misma batería — timestamp del SERVIDOR es fuente de verdad
+          // (momento real de asignación, no cuándo sincronizó este cliente)
           newAsgn[k]={...v,
-            timestamp:  local.timestamp,
+            timestamp:  v.timestamp,
             _estado:    local._estado||v._estado,
             locomotion: local.locomotion!==undefined?local.locomotion:v.locomotion,
             etiqueta:   local.etiqueta||v.etiqueta
@@ -1506,6 +1507,13 @@ async function assignUPE(){
       console.error('[apiPost asignar] Error del servidor:', r);
     } else if (r && r.ok) {
       setMsg('✓ ' + upe + ' → ' + st + ' [' + (r.turno||turnoActual) + ']');
+      // Actualizar el timestamp local con el que confirmó el servidor
+      // Esto asegura que todas las PCs usen exactamente el mismo timestamp
+      if(r.timestamp && assignments[st]){
+        assignments[st].timestamp = r.timestamp;
+        if(r.turno) assignments[st].turno = r.turno;
+        saveLocal();
+      }
       console.log('[apiPost asignar] OK:', r);
     } else {
       setMsg('⚠️ Respuesta inesperada del servidor', true);
