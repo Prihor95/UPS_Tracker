@@ -419,6 +419,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       📐 Haz clic o arrastra una imagen del plano<br>
       <span style="font-size:11px;opacity:.7">PNG, JPG — se guarda en el navegador</span>
     </label>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+      <input class="inp" id="bg-url-inp" style="margin-bottom:0;font-size:11px;font-family:monospace" placeholder="O pega URL pública de la imagen (GitHub raw, etc.)"/>
+      <button class="abtn" onclick="setBgFromUrl()" style="white-space:nowrap">Usar URL</button>
+    </div>
     <div class="iinfo" id="iinfo" style="display:none">
       <span id="iname" style="flex:1"></span>
       <button class="bsm bdanger" onclick="clearImg()">Quitar imagen</button>
@@ -582,6 +586,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <input class="inp" id="set-api" style="font-size:11px;font-family:monospace" placeholder="https://script.google.com/macros/s/.../exec"/>
       <button class="btn btn-primary" onclick="saveApiUrl()">Guardar URL</button>
       <button class="btn" style="margin-top:4px" onclick="bajarAjustes()">↓ Bajar ajustes del servidor</button>
+      <button class="btn" style="margin-top:4px" onclick="subirAjustes()">☁ Subir mis ajustes al servidor</button>
       <div class="smsg" id="api-msg"></div>
     </div>
 
@@ -976,12 +981,13 @@ async function bajarCroquis(){
   lbl.textContent='Descargando...';
   lbl.style.color='#888';
   try{
-    const res=await fetch(settings.api+'?action=layout&t='+Date.now());
-    const data=await res.json();
+    const res=await fetch(settings.api+'?action=layout&t='+Date.now(),{redirect:'follow'});
+    const text=await res.text();
+    let data;
+    try{data=JSON.parse(text);}catch(e){throw new Error('Respuesta no-JSON: '+text.slice(0,120));}
     if(data.ok && data.stations){
       stations=data.stations;
-      saveLocal();
-      renderMain();renderEdit();renderTable();
+      saveLocal();renderMain();renderEdit();renderTable();
       lbl.textContent='✓ Layout actualizado · '+ts();
       lbl.style.color='#34A853';
       addLog('Croquis bajado del servidor · '+(data.timestamp||''));
@@ -993,6 +999,35 @@ async function bajarCroquis(){
     lbl.textContent='Error al bajar: '+e.message;
     lbl.style.color='#EA4335';
   }
+}
+
+// Cargar imagen de fondo desde URL pública (GitHub raw, etc.)
+function setBgFromUrl(){
+  const url=document.getElementById('bg-url-inp').value.trim();
+  if(!url){alert('Pega una URL de imagen primero.');return;}
+  bgUrl=url;
+  saveLocal();applyBg();
+  document.getElementById('iinfo').style.display='flex';
+  document.getElementById('iname').textContent='🔗 '+url.split('/').pop();
+  document.getElementById('uzlbl').style.display='none';
+  addLog('Plano: URL externa cargada');
+}
+
+// Subir ajustes locales al servidor para que otras PCs los descarguen
+async function subirAjustes(){
+  const m=document.getElementById('api-msg');
+  if(m){m.textContent='Subiendo ajustes...';m.className='smsg';}
+  try{
+    const settingsASubir={...settings};
+    // Si la imagen de fondo es URL externa (no base64), incluirla en settings
+    if(bgUrl && !bgUrl.startsWith('data:')) settingsASubir._bgUrl=bgUrl;
+    const r=await apiPost({action:'guardar_settings',settings:settingsASubir});
+    if(!r.ok) throw new Error(r.error||'Error del servidor');
+    if(m){m.textContent='✓ Ajustes subidos al servidor';m.className='smsg mok';}
+  }catch(e){
+    if(m){m.textContent='Error: '+e.message;m.className='smsg merr';}
+  }
+  setTimeout(()=>{if(m)m.textContent='';},4000);
 }
 
 function saveApiUrl(){
@@ -1094,9 +1129,17 @@ async function syncFromSheets(silent=false){
         maquinas=data.settings._maquinas;
       if(data.settings._stationMachines&&Object.keys(data.settings._stationMachines).length>0)
         stationMachines=data.settings._stationMachines;
-      // Proteger etiquetas customizadas: si el servidor no tiene, conservar las locales
-      if(!data.settings.etiquetas||data.settings.etiquetas.length===0)
-        settings.etiquetas=settings.etiquetas||[];
+      // Restaurar imagen de fondo si viene como URL externa (no se guarda en base64)
+      if(data.settings._bgUrl && !bgUrl){
+        bgUrl=data.settings._bgUrl;
+        applyBg();
+        const iinfo=document.getElementById('iinfo');
+        const iname=document.getElementById('iname');
+        const uzlbl=document.getElementById('uzlbl');
+        if(iinfo) iinfo.style.display='flex';
+        if(iname) iname.textContent='🔗 '+bgUrl.split('/').pop();
+        if(uzlbl) uzlbl.style.display='none';
+      }
       loadSettingsUI();
     }
 
