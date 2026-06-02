@@ -643,7 +643,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ══ CONFIG ══
-const DEFAULT_API = "https://script.google.com/macros/s/AKfycbyJrb3otEXva6hHCPWD7-u64rqaBRsxCpF7BJ92CSSAnbJm4eJN-jC8vJUzVDhmTRmV/exec";
+const DEFAULT_API = "https://script.google.com/macros/s/AKfycby_LKrU1Zt5e-J9dP6XXfpRh689XSD_QCbuehQMGhxDDX3I6k3gVLLgJQ0a5OslBYJh/exec";
 // URL del data.json en GitHub (lectura pública, sin auth)
 // GitHub añade cache de ~5 min; el ?t= lo rompe para forzar datos frescos
 const DATA_JSON_URL = "https://raw.githubusercontent.com/Prihor95/UPS_Tracker/main/data.json";
@@ -824,8 +824,8 @@ function loadLocal(){
   try{
     const s=JSON.parse(localStorage.getItem('upe_settings')||'{}');
     settings={...settings,...s};
-    // Si el localStorage guardó una URL vacía, restaurar el default
-    if(!settings.api || settings.api.indexOf('script.google.com')===-1)
+    // Si el localStorage guardó una URL vacía o la URL vieja, restaurar el default
+    if(!settings.api || settings.api.indexOf('script.google.com')===-1 || settings.api!==DEFAULT_API)
       settings.api=DEFAULT_API;
   }catch(e){}
 }
@@ -2326,30 +2326,30 @@ const pii=document.getElementById('inp-pct-ini');if(pii)pii.value=settings.pctIn
 updateClock();
 setInterval(updateClock,1000);
 
-// ── AUTO-SYNC cada 5 minutos ──
+// ── AUTO-SYNC cada 30 segundos ──
 // Re-renderiza estimados cada minuto (sin llamar al servidor)
 setInterval(()=>{
   renderMain();renderAlertas();renderTable();renderOpTable();
 },60000);
 
-// Sincroniza con Sheets cada 5 minutos
+// Sincroniza con Sheets cada 30 segundos
 let autoSyncInterval=null;
-function iniciarAutoSync(minutos=5){
+function iniciarAutoSync(segundos=30){
   if(autoSyncInterval) clearInterval(autoSyncInterval);
   autoSyncInterval=setInterval(async()=>{
     try{
-      await syncFromSheets(true); // silencioso
-      // Parpadeo verde en la barra para que se note
-      const dot=document.getElementById('sdot');
-      if(dot){
-        dot.style.background='#34A853';
-        setTimeout(()=>{},1000);
-      }
-    }catch(e){}
-  }, minutos*60*1000);
+      const btn=document.getElementById('bsyncbtn');
+      if(btn) btn.textContent='↻ Sincronizando...';
+      await syncFromSheets(true);
+      if(btn) btn.textContent='↻ Sincronizar';
+    }catch(e){
+      const btn=document.getElementById('bsyncbtn');
+      if(btn) btn.textContent='↻ Sincronizar';
+    }
+  }, segundos*1000);
 }
 
-iniciarAutoSync(5); // cada 5 minutos
+iniciarAutoSync(30); // cada 30 segundos
 
 // Sync inicial en segundo plano
 setTimeout(()=>syncFromSheets(true),500);
