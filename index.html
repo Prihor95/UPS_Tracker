@@ -1020,10 +1020,17 @@ function setSS(state,msg){
 async function syncFromSheets(silent=false){
   if(!silent) setSS('busy','Conectando...');
   try{
-    // Lee del data.json publicado en GitHub (rápido, sin CORS issues, público)
-    // Las escrituras siguen yendo al Apps Script vía apiPost
-    const res=await fetch(DATA_JSON_URL+'?t='+Date.now());
-    const data=await res.json();
+    // Lee directamente del Apps Script (doGet ?action=all) — sin depender de data.json en GitHub
+    const apiUrl=settings.api;
+    if(!apiUrl||apiUrl.indexOf('script.google.com')===-1){
+      setSS('err','Configura la URL del Apps Script en Ajustes');
+      return;
+    }
+    const res=await fetch(apiUrl+'?action=all&t='+Date.now(),{redirect:'follow'});
+    const text=await res.text();
+    let data;
+    try{data=JSON.parse(text);}
+    catch(e){throw new Error('Respuesta no-JSON del servidor: '+text.slice(0,120));}
     if(!data.ok) throw new Error(data.error||'Error del servidor');
 
     // Asignaciones — gana siempre el timestamp más reciente (local vs servidor)
@@ -1102,8 +1109,12 @@ async function syncFromSheets(silent=false){
 
 async function apiPost(body){
   try{
-    const res=await fetch(settings.api,{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain;charset=utf-8'}});
-    return await res.json();
+    // Usa GET con ?payload= para evitar el redirect 302 de Apps Script que rompe POST desde GitHub Pages
+    const url=settings.api+'?payload='+encodeURIComponent(JSON.stringify(body))+'&t='+Date.now();
+    const res=await fetch(url,{redirect:'follow'});
+    const text=await res.text();
+    try{return JSON.parse(text);}
+    catch(e){return {ok:false,error:'Respuesta no-JSON: '+text.slice(0,200)};}
   }catch(e){return {ok:false,error:e.message};}
 }
 
@@ -1717,10 +1728,11 @@ async function bajarAjustes(){
   const m=document.getElementById('api-msg');
   if(m){m.textContent='Bajando ajustes...';m.className='smsg';}
   try{
-    // Lee del data.json publicado en GitHub (rápido, sin CORS issues, público)
-    // Las escrituras siguen yendo al Apps Script vía apiPost
-    const res=await fetch(DATA_JSON_URL+'?t='+Date.now());
-    const data=await res.json();
+    // Lee directamente del Apps Script
+    const res=await fetch(settings.api+'?action=all&t='+Date.now(),{redirect:'follow'});
+    const text=await res.text();
+    let data;
+    try{data=JSON.parse(text);}catch(e){throw new Error('Respuesta no-JSON: '+text.slice(0,120));}
     if(!data.ok) throw new Error(data.error||'Error');
     if(data.settings){
       const apiGuardada=settings.api;
