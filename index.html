@@ -296,6 +296,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <input class="ainp" id="op-filter" placeholder="🔍 Filtrar..." oninput="renderOpTable()" style="width:140px"/>
+      <select class="ainp" id="op-turno-filter" style="font-size:11px;height:28px" onchange="renderOpTable()" title="Filtrar por turno">
+        <option value="">Todos los turnos</option>
+        <option value="mañana">☀️ Mañana</option>
+        <option value="tarde">🌤 Tarde</option>
+        <option value="noche">🌙 Noche</option>
+      </select>
       <div style="display:flex;align-items:center;gap:4px">
         <span style="font-size:11px;color:#888">📅</span>
         <select class="ainp" id="op-fecha-sel" style="font-size:11px;height:28px" onchange="cargarOperadoresPorFecha(this.value)">
@@ -1563,6 +1569,10 @@ async function generarRotacion(){
   const ayerStr=ayer.toISOString().slice(0,10);
   const hoyStr=hoy.toISOString().slice(0,10);
 
+  // Turno: tomar del selector si está activo, si no calcular automático
+  const turnoSel=((document.getElementById('op-turno-filter')||{}).value||'');
+  const turnoAct=turnoSel||getTurnoActual();
+
   // 1. Cargar operadores vigentes (estado actual) del servidor
   let opsActuales=operadores||[];
   if(!opsActuales.length){
@@ -1665,7 +1675,6 @@ async function generarRotacion(){
   // 6. Actualizar operadores y subir al servidor con fecha + turno
   operadores=resultado;
   saveLocal();
-  const turnoAct=getTurnoActual();
   try{
     const res=await apiPost({
       action:'guardar_operadores',
@@ -2657,6 +2666,7 @@ function getVal(op,keys){for(const k of keys){if(op[k]!==undefined&&op[k]!=='')r
 function renderOpTable(){
   const tbody=document.getElementById('op-tbody');if(!tbody)return;
   const fl=((document.getElementById('op-filter')||{}).value||'').toLowerCase();
+  const turnoFiltro=((document.getElementById('op-turno-filter')||{}).value||'').toLowerCase();
   const rows=[];
 
   (operadores||[]).forEach((op,idx)=>{
@@ -2680,9 +2690,9 @@ function renderOpTable(){
       idx:-1,disabled:disabledStations.has(esc)});
   });
 
-  const filtered=fl
-    ?rows.filter(r=>`${r.maq} ${r.oper} ${r.esc}`.toLowerCase().includes(fl))
-    :rows;
+  const filtered=rows
+    .filter(r=>!fl || `${r.maq} ${r.oper} ${r.esc}`.toLowerCase().includes(fl))
+    .filter(r=>!turnoFiltro || (r.turnoOp||'').toLowerCase()===turnoFiltro);
 
   if(!filtered.length){
     tbody.innerHTML=`<tr><td colspan="11" style="text-align:center;color:#AAA;padding:28px;font-size:13px">
