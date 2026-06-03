@@ -157,6 +157,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .ac-item-id{font-weight:500}
 .ac-item-tipo{font-size:10px;color:#888}
 
+/* ROTACION */
+.rot-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:500;cursor:default;border:1px solid #E0E0E0;background:#F5F5F7;color:#333;user-select:none}
+.rot-chip.off{background:#F5F5F7;color:#AAA;text-decoration:line-through;border-color:#E0E0E0}
+.rot-chip.sombra{background:#FEF3E2;color:#B06000;border-color:#F5DFA6}
+.rot-chip.toggle{cursor:pointer}
+.rot-chip.toggle:hover{opacity:.75}
+.rot-wa{font-family:monospace;font-size:12px;line-height:1.6;background:#F5F5F7;padding:12px;border-radius:8px;border:1px solid #E0E0E0;white-space:pre-wrap;word-break:break-word;max-height:260px;overflow-y:auto;color:#333}
 /* DOWNTIMES */
 .dt-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:600;white-space:nowrap}
 .dt-active{background:#FDE8E8;color:#C5221F;border:1px solid #F5C6C6}
@@ -287,10 +294,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div style="width:8px;height:8px;border-radius:50%;background:#ccc" id="op-sdot"></div>
       <span style="font-size:12px;color:#888" id="op-sync-lbl">Sin sincronizar</span>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <input class="ainp" id="op-filter" placeholder="🔍 Filtrar..." oninput="renderOpTable()" style="width:160px"/>
-      <button class="abtn" onclick="syncOperadores()">↻ Cargar desde Sheets</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input class="ainp" id="op-filter" placeholder="🔍 Filtrar..." oninput="renderOpTable()" style="width:140px"/>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:11px;color:#888">📅</span>
+        <select class="ainp" id="op-fecha-sel" style="font-size:11px;height:28px" onchange="cargarOperadoresPorFecha(this.value)">
+          <option value="actual">Hoy (actual)</option>
+        </select>
+        <button class="bsm" onclick="cargarFechasBitacora()" title="Actualizar lista de fechas">↻</button>
+      </div>
+      <button class="abtn" onclick="syncOperadores()">↻ Cargar Sheets</button>
       <button class="abtn" style="background:#1D1D1F;color:#fff;border-color:#1D1D1F" onclick="abrirModalOp(null,event)">+ Nueva fila</button>
+      <button class="abtn" style="background:#34A853;color:#fff;border-color:#34A853" onclick="generarRotacion()">🔄 Generar rotación</button>
     </div>
   </div>
 
@@ -300,12 +315,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <tr style="background:#1A73E8">
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600"># Máquina</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Escenario</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Estado batería</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">% Batería</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Batería ID</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Cambio est.</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Operador</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Turno op.</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Turno</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Modelo</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Estado bat.</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">% Bat.</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Bat. ID</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Cambio est.</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Downtime</th>
           <th style="padding:10px 6px;width:60px"></th>
         </tr>
@@ -334,6 +350,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <tbody id="cambios-tbody"></tbody>
        </table>
     </div>
+  </div>
+  <!-- Resultado WhatsApp -->
+  <div class="card" style="margin-top:16px;display:none" id="wa-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="ctitle" style="margin-bottom:0">📱 Texto para WhatsApp</div>
+      <div style="display:flex;gap:6px">
+        <button class="bsm" onclick="copiarWA()">📋 Copiar</button>
+        <button class="bsm bdanger" onclick="document.getElementById('wa-card').style.display='none'">✕</button>
+      </div>
+    </div>
+    <div class="rot-wa" id="wa-text"></div>
   </div>
 </div>
 
@@ -582,6 +609,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
     </div>
 
+    <!-- Rotación -->
+    <div class="card" style="grid-column:1/-1">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="ctitle" style="margin-bottom:0">🔄 Orden de rotación</div>
+        <div style="display:flex;gap:6px">
+          <button class="abtn" onclick="guardarRotacion()">💾 Guardar</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#888;margin-bottom:10px">
+        Lista separada por comas de escenarios en orden circular. El operador de J57 pasa a J53, el de J53 pasa a J51, etc. Los escenarios desactivados no reciben asignación (aparecen como <b>Sombra</b>).
+      </div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:11px;color:#888;margin-bottom:4px;font-weight:500">Orden (editable)</div>
+        <textarea id="rot-orden-inp" class="inp" rows="3" style="font-family:monospace;font-size:12px;margin-bottom:0;resize:vertical" placeholder="J57,J53,J51,J10,J11,J55..."></textarea>
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="font-size:11px;color:#888;margin-bottom:6px;font-weight:500">Vista previa — haz clic en un escenario para activar/desactivar</div>
+        <div id="rot-chips" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;background:#F5F5F7;border-radius:8px;min-height:40px"></div>
+      </div>
+      <div style="display:flex;gap:8px;padding:8px;background:#E8F0FE;border-radius:7px;font-size:11px;color:#1A73E8">
+        <span>ℹ️</span>
+        <span>Al generar rotación, los operadores sobrantes (más operadores que escenarios activos) quedarán como <b>Sombra</b> en el primer escenario disponible.</span>
+      </div>
+    </div>
+
     <!-- Downtimes -->
     <div class="card" style="grid-column:1/-1">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -734,6 +786,10 @@ let settings={
     {id:'falla',     label:'⚠ Falla en el turno',         tipo:'falla'},
     {id:'locomotion',label:'🚂 Actividad con locomotion',  tipo:'locomotion'}
   ],
+  // Orden de rotación de escenarios (circular)
+  rotacionOrden: 'J57,J53,J51,J10,J11,J55,J39,J36,J50,J18,J14,J48,J46,J34,J33,J15,J22,J23,J25,J26,J28,J40,J42',
+  // Escenarios desactivados para rotación (no se asigna nadie, o se marca sombra)
+  rotacionDesactivados: [],
   // Plantillas de downtime configurables
   downtimeTemplates:[
     {id:'comida',     label:'🍽 Comida',        pausa:true,  tipo:'fijo', turno:'mañana', ini:'13:00', fin:'14:00'},
@@ -1397,6 +1453,289 @@ function renderEdit(){
     g.style.cursor=eMode==='move'?'grab':eMode==='del'?'not-allowed':'pointer';
     g.addEventListener('mousedown',e=>onDown(e,id));
     l.appendChild(g);
+  });
+}
+
+// ══ ROTACIÓN DE OPERADORES ══
+
+// Obtiene array de escenarios activos en orden de rotación
+function getRotacionOrden(){
+  const raw=(settings.rotacionOrden||'').split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+  return raw;
+}
+
+function getRotacionDesactivados(){
+  return new Set((settings.rotacionDesactivados||[]).map(s=>s.toUpperCase()));
+}
+
+// Renderiza chips editables en la card de Ajustes
+function renderRotChips(){
+  const inp=document.getElementById('rot-orden-inp');
+  const chips=document.getElementById('rot-chips');
+  if(!inp||!chips) return;
+  inp.value=settings.rotacionOrden||'';
+  const orden=getRotacionOrden();
+  const off=getRotacionDesactivados();
+  chips.innerHTML=orden.map(esc=>{
+    const isOff=off.has(esc);
+    return `<span class="rot-chip toggle ${isOff?'off':''}" onclick="toggleRotDesactivado('${esc}')" title="${isOff?'Desactivado — clic para activar':'Activo — clic para desactivar'}">
+      ${esc}${isOff?' 🚫':''}
+    </span>`;
+  }).join('');
+}
+
+function toggleRotDesactivado(esc){
+  const off=getRotacionDesactivados();
+  if(off.has(esc)) off.delete(esc);
+  else off.add(esc);
+  settings.rotacionDesactivados=[...off];
+  saveLocal();
+  renderRotChips();
+}
+
+function guardarRotacion(){
+  const inp=document.getElementById('rot-orden-inp');
+  if(!inp) return;
+  const nuevo=inp.value.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean).join(',');
+  settings.rotacionOrden=nuevo;
+  // Limpiar desactivados que ya no estén en la lista
+  const set=new Set(nuevo.split(','));
+  settings.rotacionDesactivados=(settings.rotacionDesactivados||[]).filter(s=>set.has(s));
+  saveLocal();
+  renderRotChips();
+  // Subir al servidor
+  subirAjustes().then(()=>{
+    const m=document.getElementById('api-msg');
+    if(m){m.textContent='✓ Rotación guardada y publicada';m.className='smsg mok';}
+    setTimeout(()=>{if(m)m.textContent='';},3000);
+  });
+}
+
+// ── Fecha/bitácora ────────────────────────────────────────────────────────────
+async function cargarFechasBitacora(){
+  try{
+    const r=await fetch(settings.api+'?action=fechas_bitacora&t='+Date.now(),{redirect:'follow'});
+    const d=await r.json();
+    if(!d.ok) return;
+    const sel=document.getElementById('op-fecha-sel');
+    if(!sel) return;
+    // Conservar opción "actual"
+    const fechas=d.fechas||[];
+    sel.innerHTML='<option value="actual">Hoy (actual)</option>'+
+      fechas.map(f=>`<option value="${f}">${f}</option>`).join('');
+  }catch(e){console.warn('Error cargando fechas bitácora:',e);}
+}
+
+async function cargarOperadoresPorFecha(fecha){
+  if(fecha==='actual'||!fecha){
+    await syncOperadores();
+    return;
+  }
+  const lbl=document.getElementById('op-sync-lbl');
+  const dot=document.getElementById('op-sdot');
+  if(lbl) lbl.textContent='Cargando '+fecha+'...';
+  try{
+    const r=await fetch(settings.api+'?action=operadores&fecha='+fecha+'&t='+Date.now(),{redirect:'follow'});
+    const d=await r.json();
+    if(d.ok&&d.operadores){
+      operadores=d.operadores;
+      saveLocal();
+      renderOpTable();
+      if(lbl) lbl.textContent='Bitácora: '+fecha+' ('+d.operadores.length+' filas)';
+      if(dot) dot.style.background='#1A73E8';
+    }
+  }catch(e){
+    if(lbl) lbl.textContent='Error: '+e.message;
+    if(dot) dot.style.background='#EA4335';
+  }
+}
+
+// ── Genera la rotación del día ────────────────────────────────────────────────
+async function generarRotacion(){
+  const hoy=new Date();
+  const diaSemana=hoy.getDay();
+
+  // Día laboral anterior (omite fines de semana y extras)
+  let diasAtras=1;
+  if(diaSemana===1) diasAtras=3; // lunes → viernes
+  if(diaSemana===0) diasAtras=2;
+  const ayer=new Date(hoy); ayer.setDate(ayer.getDate()-diasAtras);
+  const ayerStr=ayer.toISOString().slice(0,10);
+  const hoyStr=hoy.toISOString().slice(0,10);
+
+  // 1. Cargar operadores vigentes (estado actual) del servidor
+  let opsActuales=operadores||[];
+  if(!opsActuales.length){
+    try{
+      const r=await fetch(settings.api+'?action=operadores&t='+Date.now(),{redirect:'follow'});
+      const d=await r.json();
+      if(d.ok&&d.operadores) opsActuales=d.operadores;
+    }catch(e){}
+  }
+  if(!opsActuales.length){
+    alert('No hay operadores cargados. Usa ↻ Cargar Sheets primero.');return;
+  }
+
+  const orden=getRotacionOrden();
+  if(!orden.length){
+    alert('Define el orden de rotación en Ajustes → Rotación.');return;
+  }
+  const off=getRotacionDesactivados();
+
+  // 2. Separar escenarios por modelo usando la lista de operadores
+  // El modelo está asociado al escenario (viene de la hoja, es fijo)
+  const modeloByEsc={};
+  opsActuales.forEach(op=>{
+    const esc=normEsc(getVal(op,['escenario','Escenario']));
+    const mod=(getVal(op,['modelo','Modelo'])||'').toLowerCase();
+    if(esc) modeloByEsc[esc]=mod;
+  });
+
+  // Separar operadores con y sin asignación
+  const opMap={};
+  opsActuales.forEach(op=>{
+    const esc=normEsc(getVal(op,['escenario','Escenario']));
+    if(esc) opMap[esc]=op;
+  });
+
+  // 3. Rotación: para cada escenario activo en orden, asignar el operador
+  //    que estaba UNA posición ANTES en la lista circular
+  const escActivosOrden=orden.filter(e=>!off.has(e));
+  const escOffOrden=orden.filter(e=>off.has(e));
+
+  // Lista ordenada de operadores presentes (siguiendo el orden de rotación)
+  const opsEnOrden=orden.map(e=>opMap[e]).filter(Boolean);
+
+  // Para cada escenario activo[i], el operador que va = el que estaba en escenarios activos[i-1]
+  // Con wrap-around circular
+  const resultado=[];
+
+  escActivosOrden.forEach((esc,i)=>{
+    // Índice del escenario anterior en la lista de activos (circular)
+    const iPrev=(i-1+escActivosOrden.length)%escActivosOrden.length;
+    const escPrev=escActivosOrden[iPrev];
+    const opSource=opMap[escPrev]||null;
+
+    const modeloEsc=modeloByEsc[esc]||'';
+
+    resultado.push({
+      maquina:   opSource?getVal(opSource,['maquina','Maquina']):'—',
+      escenario: esc,
+      operador:  opSource?getVal(opSource,['operador','Operador']):'—',
+      turno:     opSource?getVal(opSource,['turno','Turno']):'tarde',
+      modelo:    modeloByEsc[esc]||getVal(opMap[esc]||{},[' modelo','Modelo'])||'',
+      break:     opSource?getVal(opSource,['break','Break'])||'':'',
+      _sombra:   false
+    });
+  });
+
+  // 4. Operadores sobrantes (en opMap pero no en escActivosOrden) → sombra
+  const escenAsignados=new Set(resultado.map(r=>r.escenario));
+  const opsNoAsignados=opsEnOrden.filter(op=>{
+    const esc=normEsc(getVal(op,['escenario','Escenario']));
+    // Sobrante si su escenario de origen ya tiene alguien nuevo (siempre el caso en rotación circular)
+    // Solo sobrantes reales: más ops que escenarios activos
+    return false; // en rotación 1-a-1 no hay sobrantes a menos que haya más ops que escenarios
+  });
+
+  // Si hay más escenarios activos que operadores con asignación previa
+  const opsDisponibles=opsEnOrden.length;
+  const escActivos=escActivosOrden.length;
+  if(opsDisponibles < escActivos){
+    // Escenarios sin operador → mantener vacío o marcar sombra
+    resultado.forEach((r,i)=>{
+      if(r.operador==='—') r._sombra=true;
+    });
+  }
+
+  // 5. Escenarios desactivados → fila sombra
+  escOffOrden.forEach(esc=>{
+    const op=opMap[esc];
+    resultado.push({
+      maquina:   op?getVal(op,['maquina','Maquina']):'—',
+      escenario: esc,
+      operador:  op?getVal(op,['operador','Operador']):'—',
+      turno:     op?getVal(op,['turno','Turno']):'tarde',
+      modelo:    modeloByEsc[esc]||'',
+      break:     '',
+      _sombra:   true
+    });
+  });
+
+  // 6. Actualizar operadores y subir al servidor con fecha + turno
+  operadores=resultado;
+  saveLocal();
+  const turnoAct=getTurnoActual();
+  try{
+    const res=await apiPost({
+      action:'guardar_operadores',
+      operadores:resultado,
+      fecha:hoyStr,
+      turno:turnoAct
+    });
+    if(!res.ok) console.warn('Error guardando operadores:',res.error);
+    else addLog('Rotación guardada en servidor · '+hoyStr+' · turno '+turnoAct);
+  }catch(e){console.warn('Error sync operadores:',e);}
+
+  // 7. Texto WhatsApp — agrupa por modelo (Trossen primero)
+  const diasSem=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const fechaStr=hoy.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});
+  const trossen=resultado.filter(r=>!r._sombra&&r.modelo.toLowerCase().includes('trossen'));
+  const otros  =resultado.filter(r=>!r._sombra&&!r.modelo.toLowerCase().includes('trossen'));
+  const sombras=resultado.filter(r=>r._sombra&&r.operador!=='—');
+
+  let waText=`*Rotación ${diasSem[diaSemana]} ${fechaStr} — Turno ${turnoAct}*
+`;
+  waText+=`━━━━━━━━━━━━━━━━━━━━
+`;
+  if(trossen.length){
+    waText+=`*🤖 Trossen*
+`;
+    trossen.forEach(r=>{ waText+=`*${r.escenario}* │ ${r.operador}
+`; });
+  }
+  if(otros.length){
+    waText+=`
+*🔵 Yam-0 / Otros*
+`;
+    otros.forEach(r=>{ waText+=`*${r.escenario}* │ ${r.operador}
+`; });
+  }
+  if(sombras.length){
+    waText+=`
+*🟡 Sombras*
+`;
+    sombras.forEach(r=>{ waText+=`${r.escenario} │ ${r.operador} (sombra)
+`; });
+  }
+  waText+=`━━━━━━━━━━━━━━━━━━━━`;
+
+  const waCard=document.getElementById('wa-card');
+  const waEl  =document.getElementById('wa-text');
+  if(waCard&&waEl){
+    waEl.textContent=waText;
+    waCard.style.display='block';
+    waCard.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+
+  renderOpTable();renderMain();
+  addLog('Rotación generada · '+fechaStr+' · turno '+turnoAct);
+}
+
+function copiarWA(){
+  const el=document.getElementById('wa-text');
+  if(!el) return;
+  navigator.clipboard.writeText(el.textContent).then(()=>{
+    const btn=el.previousElementSibling;
+    // find copy btn
+    const copyBtn=document.querySelector('#wa-card .bsm');
+    if(copyBtn){const orig=copyBtn.textContent;copyBtn.textContent='✓ Copiado!';setTimeout(()=>copyBtn.textContent=orig,2000);}
+  }).catch(()=>{
+    // fallback
+    const r=document.createRange();r.selectNode(el);
+    window.getSelection().removeAllRanges();window.getSelection().addRange(r);
+    document.execCommand('copy');
+    window.getSelection().removeAllRanges();
   });
 }
 
@@ -2285,14 +2624,21 @@ function syncOperadores(){
   const dot=document.getElementById('op-sdot');
   if(lbl)lbl.textContent='Cargando desde Sheets...';
   if(dot){dot.style.background='#FBBC04';dot.style.animation='blink .7s infinite alternate';}
-  fetch(settings.api+'?action=operadores&t='+Date.now())
-    .then(r=>r.json())
-    .then(data=>{
+  fetch(settings.api+'?action=operadores&t='+Date.now(),{redirect:'follow'})
+    .then(r=>r.text())
+    .then(text=>{
+      let data;
+      try{data=JSON.parse(text);}catch(e){throw new Error('Respuesta no-JSON');}
       if(data.ok&&data.operadores){
         operadores=data.operadores;saveLocal();
         if(lbl)lbl.textContent='Actualizado · '+ts();
         if(dot){dot.style.background='#34A853';dot.style.animation='';}
         renderOpTable();
+        // Resetear selector al "actual"
+        const sel=document.getElementById('op-fecha-sel');
+        if(sel) sel.value='actual';
+        // Cargar fechas disponibles en bitácora en background
+        cargarFechasBitacora();
       } else {
         if(lbl)lbl.textContent='Sin datos en hoja Operadores';
         if(dot){dot.style.background='#EA4335';dot.style.animation='';}
@@ -2318,8 +2664,9 @@ function renderOpTable(){
     const maq=getVal(op,['maquina','Maquina'])||'—';
     const oper=getVal(op,['operador','Operador'])||'—';
     const turnoOp=getVal(op,['turno','Turno'])||'—';
+    const modelo=getVal(op,['modelo','Modelo'])||'';
     const asgn=assignments[esc]||null;
-    rows.push({esc,maq,oper,turnoOp,asgn,
+    rows.push({esc,maq,oper,turnoOp,modelo,asgn,
       pct:asgn?estimarPorcentaje(esc):null,
       hora:asgn?estimarHoraCambio(esc):null,
       idx,disabled:disabledStations.has(esc)});
@@ -2328,7 +2675,7 @@ function renderOpTable(){
   Object.entries(assignments).forEach(([esc,asgn])=>{
     if(!asgn||!asgn.upe_id)return;
     if((operadores||[]).find(o=>normEsc(getVal(o,['escenario','Escenario']))===esc))return;
-    rows.push({esc,maq:'—',oper:'—',turnoOp:'—',asgn,
+    rows.push({esc,maq:'—',oper:'—',turnoOp:'—',modelo:'',asgn,
       pct:estimarPorcentaje(esc),hora:estimarHoraCambio(esc),
       idx:-1,disabled:disabledStations.has(esc)});
   });
@@ -2338,13 +2685,13 @@ function renderOpTable(){
     :rows;
 
   if(!filtered.length){
-    tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;color:#AAA;padding:28px;font-size:13px">
+    tbody.innerHTML=`<tr><td colspan="11" style="text-align:center;color:#AAA;padding:28px;font-size:13px">
       Sin datos — haz clic en <b>↻ Cargar desde Sheets</b> o <b>+ Nueva fila</b>
     </td></tr>`;
     return;
   }
 
-  tbody.innerHTML=filtered.map(({esc,maq,oper,turnoOp,asgn,pct,hora,idx,disabled})=>{
+  tbody.innerHTML=filtered.map(({esc,maq,oper,turnoOp,modelo,asgn,pct,hora,idx,disabled})=>{
     const pctColor=pct===null?'#888':pct<=settings.alerta?'#EA4335':pct<=40?'#FBBC04':'#34A853';
     const pctVal=pct!==null?Math.round(pct):null;
     const est=asgn?(asgn._estado||'en-uso'):'libre';
@@ -2388,11 +2735,24 @@ function renderOpTable(){
         : '<span style="color:#AAA;font-size:11px">Sin plantillas</span>';
     }
 
+    // Sombra flag from operadores list
+    const esSombraOp=!!(getVal(operadores[idx]||{},['_sombra'])===true||(asgn&&asgn._estado==='sombra'));
+    const sombraStyle=esSombraOp?'font-style:italic;color:#B06000':'';
+
     return `<tr style="${disabled?'opacity:.45':''}">
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
         <span style="display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;background:#E6F4EA;color:#137333">${maq}</span>
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-weight:500">${esc||'—'}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;${sombraStyle}">
+        ${esSombraOp?'<span style="font-size:10px;background:#FEF3E2;color:#B06000;padding:1px 5px;border-radius:4px;margin-right:4px">sombra</span>':''}${oper}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
+        <span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:500;background:${tBg};color:${tFg}">${turnoOp}</span>
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
+        ${modelo?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;background:${modelo.toLowerCase().includes('trossen')?'#E8F0FE':'#F3E8FF'};color:${modelo.toLowerCase().includes('trossen')?'#1A73E8':'#7B1FA2'}">${modelo}</span>`:'<span style="color:#CCC">—</span>'}
+      </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
         ${asgn&&asgn.upe_id
           ?`<select class="op-sel est-${est}"
@@ -2414,10 +2774,6 @@ function renderOpTable(){
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-size:12px">
         ${hora?'<span style="color:#1A73E8">~'+hora+'</span>':'<span style="color:#AAA">—</span>'}
-      </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">${oper}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
-        <span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:500;background:${tBg};color:${tFg}">${turnoOp}</span>
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">${dtCell}</td>
       <td style="padding:8px 6px;border-bottom:1px solid #F5F5F5;white-space:nowrap">${editBtns}</td>
@@ -2578,7 +2934,7 @@ function sw(name,btn){
   if(name==='tabla')renderTable();
   if(name==='almacen')renderInv();
   if(name==='editar'){applyBg();renderEdit();setupEdit();actualizarSelectMaquinas();}
-  if(name==='ajustes'){renderPromedios();loadSettingsUI();renderMaquinas();renderDTTemplates();}
+  if(name==='ajustes'){renderPromedios();loadSettingsUI();renderMaquinas();renderDTTemplates();renderRotChips();}
   if(name==='croquis'){renderMain();renderAlertas();}
   if(name==='operacion'){renderOpTable();renderCambios();}
 }
@@ -2607,6 +2963,7 @@ renderAll();
 setupEdit();
 loadSettingsUI();
 renderDTTemplates();
+renderRotChips();
 if(typeof renderEtiquetas==='function')renderEtiquetas();
 if(typeof syncSelectEtiquetas==='function')syncSelectEtiquetas();
 if(typeof onLocoChange==='function')onLocoChange();
