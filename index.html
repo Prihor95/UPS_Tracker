@@ -157,6 +157,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .ac-item-id{font-weight:500}
 .ac-item-tipo{font-size:10px;color:#888}
 
+/* DOWNTIMES */
+.dt-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:600;white-space:nowrap}
+.dt-active{background:#FDE8E8;color:#C5221F;border:1px solid #F5C6C6}
+.dt-paused{background:#FEF3E2;color:#B06000;border:1px solid #F5DFA6}
+.dt-btn{padding:3px 9px;font-size:11px;border:1px solid #E0E0E0;border-radius:5px;background:none;color:#555;cursor:pointer;white-space:nowrap}
+.dt-btn:hover{background:#F5F5F7}
+.dt-btn.start{border-color:#EA4335;color:#C5221F}
+.dt-btn.start:hover{background:#FDE8E8}
+.dt-btn.end{border-color:#34A853;color:#137333}
+.dt-btn.end:hover{background:#E6F4EA}
 /* AJUSTES */
 .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .setting-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #F0F0F0}
@@ -296,6 +306,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Cambio est.</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Operador</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Turno op.</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Downtime</th>
           <th style="padding:10px 6px;width:60px"></th>
         </tr>
       </thead>
@@ -571,13 +582,71 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
     </div>
 
-    <!-- Turnos -->
-    <div class="card">
-      <div class="ctitle">Turnos y breaks</div>
-      <div class="setting-row"><div><div class="setting-label">Turno mañana</div><div class="setting-desc">07:00 – 16:36 · Break: 13:00–14:00 (60 min)</div></div></div>
-      <div class="setting-row"><div><div class="setting-label">Turno tarde</div><div class="setting-desc">16:36 – 22:00 · Break: 19:06–19:36 (30 min)</div></div></div>
-      <div class="setting-row"><div><div class="setting-label">Turno noche</div><div class="setting-desc">22:00 – 07:00 · Break: 02:00–03:00 (60 min)</div></div></div>
-      <div class="setting-row"><div><div class="setting-label">Operación</div><div class="setting-desc">Lunes–Viernes (L mañana – V tarde)</div></div></div>
+    <!-- Downtimes -->
+    <div class="card" style="grid-column:1/-1">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="ctitle" style="margin-bottom:0">⏸ Plantillas de Downtime</div>
+        <button class="abtn" onclick="abrirModalDT(null)">+ Nueva</button>
+      </div>
+      <div style="font-size:11px;color:#888;margin-bottom:10px">
+        Define los tipos de paros que pueden ocurrir. Los <b>fijos</b> se asignan a un turno y horario específico (ej. comida). Los <b>manuales</b> se inician/terminan desde la pestaña Operación. Si <b>pausa batería</b> está activo, el tiempo de descarga se detiene durante el paro.
+      </div>
+      <div id="dt-templates-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+      <div style="padding:8px;background:#F5F5F7;border-radius:6px;font-size:11px;color:#666">
+        💡 Los downtimes <b>fijos</b> se aplican automáticamente a todas las estaciones en su turno. Los <b>manuales</b> se activan por estación desde Operación.
+      </div>
+    </div>
+
+    <!-- Modal downtime template -->
+    <div id="dt-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center">
+      <div style="background:#fff;border-radius:14px;padding:24px;width:360px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,.18)">
+        <div style="font-size:15px;font-weight:600;margin-bottom:16px" id="dt-modal-title">Nueva plantilla</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div>
+            <div style="font-size:11px;color:#888;margin-bottom:4px">Nombre</div>
+            <input class="inp" id="dt-m-label" placeholder="Ej: Comida turno mañana" style="margin-bottom:0"/>
+          </div>
+          <div style="display:flex;gap:10px">
+            <div style="flex:1">
+              <div style="font-size:11px;color:#888;margin-bottom:4px">Tipo</div>
+              <select class="inp" id="dt-m-tipo" style="margin-bottom:0" onchange="dtTipoChange()">
+                <option value="fijo">Fijo (por turno)</option>
+                <option value="manual">Manual (a demanda)</option>
+              </select>
+            </div>
+            <div style="flex:1">
+              <div style="font-size:11px;color:#888;margin-bottom:4px">Turno</div>
+              <select class="inp" id="dt-m-turno" style="margin-bottom:0">
+                <option value="mañana">Mañana</option>
+                <option value="tarde">Tarde</option>
+                <option value="noche">Noche</option>
+                <option value="todos">Todos</option>
+              </select>
+            </div>
+          </div>
+          <div id="dt-horario-row" style="display:flex;gap:10px">
+            <div style="flex:1">
+              <div style="font-size:11px;color:#888;margin-bottom:4px">Inicio</div>
+              <input class="inp" id="dt-m-ini" type="time" style="margin-bottom:0"/>
+            </div>
+            <div style="flex:1">
+              <div style="font-size:11px;color:#888;margin-bottom:4px">Fin</div>
+              <input class="inp" id="dt-m-fin" type="time" style="margin-bottom:0"/>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px;background:#F5F5F7;border-radius:7px">
+            <input type="checkbox" id="dt-m-pausa" style="width:15px;height:15px"/>
+            <div>
+              <div style="font-size:12px;font-weight:500">Pausa batería</div>
+              <div style="font-size:11px;color:#888">El % de batería no avanza durante este paro</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button class="btn btn-primary" style="flex:1" onclick="guardarDT()">Guardar</button>
+          <button class="btn" style="flex:1" onclick="document.getElementById('dt-modal').style.display='none'">Cancelar</button>
+        </div>
+      </div>
     </div>
 
     <!-- API -->
@@ -664,6 +733,14 @@ let settings={
   etiquetas:[
     {id:'falla',     label:'⚠ Falla en el turno',         tipo:'falla'},
     {id:'locomotion',label:'🚂 Actividad con locomotion',  tipo:'locomotion'}
+  ],
+  // Plantillas de downtime configurables
+  downtimeTemplates:[
+    {id:'comida',     label:'🍽 Comida',        pausa:true,  tipo:'fijo', turno:'mañana', ini:'13:00', fin:'14:00'},
+    {id:'cena',       label:'🍽 Cena',          pausa:true,  tipo:'fijo', turno:'tarde',  ini:'19:06', fin:'19:36'},
+    {id:'break-noche',label:'☕ Break noche',   pausa:true,  tipo:'fijo', turno:'noche',  ini:'02:00', fin:'03:00'},
+    {id:'mtto',       label:'🔧 Mantenimiento', pausa:true,  tipo:'manual'},
+    {id:'falla-maq',  label:'⚠ Falla máquina',  pausa:false, tipo:'manual'}
   ]
 };
 let selSt=null, eMode='move', eSel=null, drag=false, dOff={x:0,y:0};
@@ -726,18 +803,34 @@ function calcEfectivo(inicioStr, finStr){
     if(!ini||!fin||ini>=fin) return 0;
     let total=(fin-ini)/60000;
     let breakMin=0, cursor=new Date(ini);
+
+    // Breaks fijos desde plantillas de downtime configuradas (solo las que pausan batería)
+    const templates=(settings.downtimeTemplates||[]).filter(t=>t.pausa&&t.tipo==='fijo'&&t.ini&&t.fin);
+    // Convertir plantillas a [startMin, endMin] en minutos desde medianoche
+    const fixedBreaks=templates.map(t=>{
+      const [hs,ms]=t.ini.split(':').map(Number);
+      const [he,me]=t.fin.split(':').map(Number);
+      return [hs*60+ms, he*60+me];
+    });
+
     while(cursor<fin){
-      const dow=cursor.getDay(), esLab=dow>=1&&dow<=5;
-      const dayS=new Date(cursor); dayS.setHours(0,0,0,0);
-      const dayE=new Date(dayS); dayE.setDate(dayE.getDate()+1);
-      const sI=(Math.max(+cursor,+dayS)-+dayS)/60000;
-      const sF=(Math.min(+fin,+dayE)-+dayS)/60000;
-      if(esLab){
-        [[13*60,14*60],[19*60+6,19*60+36],[2*60,3*60]].forEach(([bs,be])=>{
+      const offMin = getMexOffset(cursor)==='-05:00' ? -5*60 : -6*60;
+      const cursorMex = new Date(+cursor + offMin*60000);
+      const dow = cursorMex.getUTCDay();
+      const esLab = dow>=1 && dow<=5;
+      const dayStartMex = new Date(Date.UTC(
+        cursorMex.getUTCFullYear(), cursorMex.getUTCMonth(), cursorMex.getUTCDate()
+      ));
+      const dayStartUTC = +dayStartMex - offMin*60000;
+      const dayEndUTC = dayStartUTC + 24*60*60000;
+      const sI = (Math.max(+cursor, dayStartUTC) - dayStartUTC) / 60000;
+      const sF = (Math.min(+fin, dayEndUTC) - dayStartUTC) / 60000;
+      if(esLab && fixedBreaks.length){
+        fixedBreaks.forEach(([bs,be])=>{
           breakMin+=Math.max(0,Math.min(sF,be)-Math.max(sI,bs));
         });
       }
-      cursor=dayE;
+      cursor=new Date(dayEndUTC);
     }
     return Math.max(0,total-breakMin);
   }catch(e){return 0;}
@@ -778,13 +871,23 @@ function estimarPorcentaje(estacion){
   const esLoco=!!asgn.locomotion;
   const p=getPromedio(asgn.upe_id, esLoco);
   if(!p) return null;
-  const transcurrido=calcEfectivo(asgn.timestamp, tsISO());
+  // Tiempo efectivo descontando breaks fijos (comida, etc.)
+  let transcurrido=calcEfectivo(asgn.timestamp, tsISO());
+  // Descontar además downtimes manuales completados que pausan la batería
+  const dts=asgn._downtimes||[];
+  dts.forEach(dt=>{
+    const tpl=(settings.downtimeTemplates||[]).find(t=>t.id===dt.tipo);
+    if(!tpl||!tpl.pausa) return; // solo los que pausan
+    const dtIni=parseTS(dt.inicio);
+    const dtFin=dt.fin?parseTS(dt.fin):new Date(); // si está activo, hasta ahora
+    if(!dtIni) return;
+    const durDT=(dtFin-dtIni)/60000;
+    transcurrido=Math.max(0, transcurrido-durDT);
+  });
   const pctIni=asgn.pct_inicio||100;
   const pctFin=asgn.pct_fin||settings.pctFin;
   const rango=pctIni-pctFin;
-  // Rango de referencia: del 100% al pctFin de settings (lo que mide el promedio)
   const rangoRef=Math.max(1, 100 - (settings.pctFin||10));
-  // Tiempo que realmente dura este rango proporcional
   const duracionRango=p.val * (rango / rangoRef);
   const fraccion=Math.min(1, transcurrido / duracionRango);
   return Math.max(pctFin, pctIni - rango*fraccion);
@@ -797,7 +900,16 @@ function estimarHoraCambio(estacion){
   const esLoco=!!asgn.locomotion;
   const p=getPromedio(asgn.upe_id, esLoco);
   if(!p) return null;
-  const transcurrido=calcEfectivo(asgn.timestamp, tsISO());
+  let transcurrido=calcEfectivo(asgn.timestamp, tsISO());
+  const dts=asgn._downtimes||[];
+  dts.forEach(dt=>{
+    const tpl=(settings.downtimeTemplates||[]).find(t=>t.id===dt.tipo);
+    if(!tpl||!tpl.pausa) return;
+    const dtIni=parseTS(dt.inicio);
+    const dtFin=dt.fin?parseTS(dt.fin):new Date();
+    if(!dtIni) return;
+    transcurrido=Math.max(0, transcurrido-((dtFin-dtIni)/60000));
+  });
   const pctIni=asgn.pct_inicio||100;
   const pctFin=asgn.pct_fin||settings.pctFin;
   const rango=pctIni-pctFin;
@@ -1088,12 +1200,15 @@ async function syncFromSheets(silent=false){
           newAsgn[k]=v;
         } else if(local.upe_id===v.upe_id){
           // Misma batería — timestamp del SERVIDOR es fuente de verdad
-          // (momento real de asignación, no cuándo sincronizó este cliente)
+          // _downtimes: gana quien tenga más entradas (más actualizado)
+          const dtsLocal=local._downtimes||[];
+          const dtsServer=v._downtimes||[];
           newAsgn[k]={...v,
             timestamp:  v.timestamp,
             _estado:    local._estado||v._estado,
             locomotion: local.locomotion!==undefined?local.locomotion:v.locomotion,
-            etiqueta:   local.etiqueta||v.etiqueta
+            etiqueta:   local.etiqueta||v.etiqueta,
+            _downtimes: dtsLocal.length>=dtsServer.length?dtsLocal:dtsServer
           };
         } else {
           // Baterías distintas → gana el más reciente
@@ -1283,6 +1398,152 @@ function renderEdit(){
     g.addEventListener('mousedown',e=>onDown(e,id));
     l.appendChild(g);
   });
+}
+
+// ══ DOWNTIME MANAGEMENT ══
+
+function iniciarDT(estacion){
+  const sel=document.getElementById('dt-sel-'+estacion);
+  if(!sel||!sel.value) return;
+  const tipo=sel.value;
+  const tpl=(settings.downtimeTemplates||[]).find(t=>t.id===tipo);
+  if(!tpl){return;}
+  if(!assignments[estacion]||!assignments[estacion].upe_id){
+    alert('No hay batería asignada en '+estacion);return;
+  }
+  if(!assignments[estacion]._downtimes) assignments[estacion]._downtimes=[];
+  // Si ya hay uno activo, no abrir otro
+  if(assignments[estacion]._downtimes.find(d=>!d.fin)){
+    alert('Ya hay un downtime activo en '+estacion+'. Termínalo primero.');return;
+  }
+  const now=tsISO();
+  assignments[estacion]._downtimes.push({tipo, inicio:now, fin:null, _tsStart:Date.now()});
+  saveLocal();
+  addLog(estacion+': downtime iniciado — '+tpl.label);
+  // Sincronizar al servidor incluyendo los downtimes actualizados
+  apiPost({action:'asignar_forzado',
+    estacion, upe_id:assignments[estacion].upe_id,
+    timestamp:assignments[estacion].timestamp,
+    turno:assignments[estacion].turno||turnoActual,
+    pct_inicio:assignments[estacion].pct_inicio||100,
+    pct_fin:assignments[estacion].pct_fin||settings.pctFin,
+    locomotion:assignments[estacion].locomotion||false,
+    etiqueta:assignments[estacion].etiqueta||'',
+    _downtimes:assignments[estacion]._downtimes||[]
+  }).catch(()=>{});
+  renderOpTable();renderMain();renderAlertas();
+}
+
+function terminarDT(estacion){
+  if(!assignments[estacion]||!assignments[estacion]._downtimes) return;
+  const dt=assignments[estacion]._downtimes.find(d=>!d.fin);
+  if(!dt) return;
+  dt.fin=tsISO();
+  const durMin=Math.round((parseTS(dt.fin)-parseTS(dt.inicio))/60000);
+  const tpl=(settings.downtimeTemplates||[]).find(t=>t.id===dt.tipo)||{label:dt.tipo};
+  saveLocal();
+  addLog(estacion+': downtime terminado — '+tpl.label+' ('+durMin+' min)');
+  apiPost({action:'asignar_forzado',
+    estacion, upe_id:assignments[estacion].upe_id,
+    timestamp:assignments[estacion].timestamp,
+    turno:assignments[estacion].turno||turnoActual,
+    pct_inicio:assignments[estacion].pct_inicio||100,
+    pct_fin:assignments[estacion].pct_fin||settings.pctFin,
+    locomotion:assignments[estacion].locomotion||false,
+    etiqueta:assignments[estacion].etiqueta||'',
+    _downtimes:assignments[estacion]._downtimes||[]
+  }).catch(()=>{});
+  renderOpTable();renderMain();renderAlertas();
+}
+
+// ══ DOWNTIME TEMPLATE CRUD ══
+let dtEditId=null;
+
+function renderDTTemplates(){
+  const el=document.getElementById('dt-templates-list');
+  if(!el) return;
+  const tpls=settings.downtimeTemplates||[];
+  if(!tpls.length){
+    el.innerHTML='<div style="color:#AAA;font-size:12px;text-align:center;padding:10px">Sin plantillas. Agrega una con + Nueva.</div>';
+    return;
+  }
+  el.innerHTML=tpls.map((t,i)=>{
+    const tipoBadge=t.tipo==='fijo'
+      ?`<span style="background:#E8F0FE;color:#1A73E8;padding:1px 6px;border-radius:99px;font-size:10px">Fijo · ${t.turno||''} ${t.ini||''}–${t.fin||''}</span>`
+      :`<span style="background:#EDE7F6;color:#5E35B1;padding:1px 6px;border-radius:99px;font-size:10px">Manual</span>`;
+    const pausaBadge=t.pausa
+      ?`<span style="background:#E6F4EA;color:#137333;padding:1px 6px;border-radius:99px;font-size:10px">⏸ Pausa bat.</span>`
+      :`<span style="background:#FEF3E2;color:#B06000;padding:1px 6px;border-radius:99px;font-size:10px">▶ Bat. sigue</span>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px;background:#F5F5F7;border-radius:7px">
+      <div style="flex:1;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+        <span style="font-size:13px;font-weight:500">${t.label}</span>
+        ${tipoBadge}${pausaBadge}
+      </div>
+      <button class="bsm" onclick="abrirModalDT('${t.id}')">✎</button>
+      <button class="bsm bdanger" onclick="eliminarDT('${t.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function abrirModalDT(id){
+  dtEditId=id;
+  const modal=document.getElementById('dt-modal');if(!modal)return;
+  document.getElementById('dt-modal-title').textContent=id?'Editar plantilla':'Nueva plantilla';
+  if(id){
+    const t=(settings.downtimeTemplates||[]).find(x=>x.id===id);
+    if(!t)return;
+    document.getElementById('dt-m-label').value=t.label||'';
+    document.getElementById('dt-m-tipo').value=t.tipo||'manual';
+    document.getElementById('dt-m-turno').value=t.turno||'todos';
+    document.getElementById('dt-m-ini').value=t.ini||'';
+    document.getElementById('dt-m-fin').value=t.fin||'';
+    document.getElementById('dt-m-pausa').checked=!!t.pausa;
+  } else {
+    document.getElementById('dt-m-label').value='';
+    document.getElementById('dt-m-tipo').value='manual';
+    document.getElementById('dt-m-turno').value='todos';
+    document.getElementById('dt-m-ini').value='';
+    document.getElementById('dt-m-fin').value='';
+    document.getElementById('dt-m-pausa').checked=true;
+  }
+  dtTipoChange();
+  modal.style.display='flex';
+}
+
+function dtTipoChange(){
+  const tipo=document.getElementById('dt-m-tipo').value;
+  const row=document.getElementById('dt-horario-row');
+  const turnoSel=document.getElementById('dt-m-turno');
+  if(row) row.style.display=tipo==='fijo'?'flex':'none';
+  if(turnoSel) turnoSel.parentElement.parentElement.style.display=tipo==='fijo'?'flex':'none';
+}
+
+function guardarDT(){
+  const label=document.getElementById('dt-m-label').value.trim();
+  if(!label){alert('Escribe un nombre');return;}
+  const tipo=document.getElementById('dt-m-tipo').value;
+  const turno=document.getElementById('dt-m-turno').value;
+  const ini=document.getElementById('dt-m-ini').value;
+  const fin=document.getElementById('dt-m-fin').value;
+  const pausa=document.getElementById('dt-m-pausa').checked;
+  if(!settings.downtimeTemplates) settings.downtimeTemplates=[];
+  if(dtEditId){
+    const idx=settings.downtimeTemplates.findIndex(t=>t.id===dtEditId);
+    if(idx>=0) settings.downtimeTemplates[idx]={...settings.downtimeTemplates[idx],label,tipo,turno,ini,fin,pausa};
+  } else {
+    const id='dt-'+Date.now();
+    settings.downtimeTemplates.push({id,label,tipo,turno,ini,fin,pausa});
+  }
+  document.getElementById('dt-modal').style.display='none';
+  saveLocal();
+  renderDTTemplates();
+  renderOpTable();
+}
+
+function eliminarDT(id){
+  if(!confirm('¿Eliminar esta plantilla?')) return;
+  settings.downtimeTemplates=(settings.downtimeTemplates||[]).filter(t=>t.id!==id);
+  saveLocal();renderDTTemplates();renderOpTable();
 }
 
 function renderAll(){renderMain();renderEdit();renderTable();renderInv();renderLog();renderAlertas();renderPromedios();}
@@ -1501,7 +1762,7 @@ async function assignUPE(){
   renderMain();renderTable();renderAlertas();renderPromedios();
   setMsg('Sincronizando...');dis(true);
   try {
-    const r=await apiPost({action:'asignar',estacion:st,upe_id:upe,pct_inicio:pctIni,pct_fin:pctFin,locomotion:esLoco,etiqueta:etiqueta||''});
+    const r=await apiPost({action:'asignar',estacion:st,upe_id:upe,pct_inicio:pctIni,pct_fin:pctFin,locomotion:esLoco,etiqueta:etiqueta||'',_downtimes:[]});
     if (r && !r.ok) {
       setMsg('⚠️ Error en la nube: ' + (r.error || 'desconocido'), true);
       console.error('[apiPost asignar] Error del servidor:', r);
@@ -2104,6 +2365,29 @@ function renderOpTable(){
         <button class="bsm bdanger" onclick="eliminarFilaOp(${idx})">✕</button>`
       :'';
 
+    // Downtime column
+    const activeDT = (asgn&&asgn._downtimes||[]).find(d=>!d.fin);
+    const dtTemplates = (settings.downtimeTemplates||[]).filter(t=>t.tipo==='manual');
+    let dtCell='';
+    if(!asgn||!asgn.upe_id){
+      dtCell='<span style="color:#CCC;font-size:11px">—</span>';
+    } else if(activeDT){
+      const tpl=(settings.downtimeTemplates||[]).find(t=>t.id===activeDT.tipo)||{label:activeDT.tipo};
+      const durMin=Math.round((Date.now()-new Date(activeDT._tsStart||activeDT.inicio))/60000);
+      dtCell=`<div style="display:flex;flex-direction:column;gap:4px">
+        <span class="dt-badge dt-active">⏸ ${tpl.label} · ${durMin}m</span>
+        <button class="dt-btn end" onclick="terminarDT('${esc}')">✓ Terminar</button>
+      </div>`;
+    } else {
+      const opts=dtTemplates.map(t=>`<option value="${t.id}">${t.label}</option>`).join('');
+      dtCell= opts
+        ? `<div style="display:flex;gap:4px;align-items:center">
+            <select class="ainp" id="dt-sel-${esc}" style="font-size:11px;padding:3px 5px;height:26px">${opts}</select>
+            <button class="dt-btn start" onclick="iniciarDT('${esc}')">⏸ Iniciar</button>
+           </div>`
+        : '<span style="color:#AAA;font-size:11px">Sin plantillas</span>';
+    }
+
     return `<tr style="${disabled?'opacity:.45':''}">
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
         <span style="display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;background:#E6F4EA;color:#137333">${maq}</span>
@@ -2135,6 +2419,7 @@ function renderOpTable(){
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
         <span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:500;background:${tBg};color:${tFg}">${turnoOp}</span>
       </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">${dtCell}</td>
       <td style="padding:8px 6px;border-bottom:1px solid #F5F5F5;white-space:nowrap">${editBtns}</td>
     </tr>`;
   }).join('');
@@ -2293,7 +2578,7 @@ function sw(name,btn){
   if(name==='tabla')renderTable();
   if(name==='almacen')renderInv();
   if(name==='editar'){applyBg();renderEdit();setupEdit();actualizarSelectMaquinas();}
-  if(name==='ajustes'){renderPromedios();loadSettingsUI();renderMaquinas();}
+  if(name==='ajustes'){renderPromedios();loadSettingsUI();renderMaquinas();renderDTTemplates();}
   if(name==='croquis'){renderMain();renderAlertas();}
   if(name==='operacion'){renderOpTable();renderCambios();}
 }
@@ -2321,6 +2606,7 @@ applyBg();
 renderAll();
 setupEdit();
 loadSettingsUI();
+renderDTTemplates();
 if(typeof renderEtiquetas==='function')renderEtiquetas();
 if(typeof syncSelectEtiquetas==='function')syncSelectEtiquetas();
 if(typeof onLocoChange==='function')onLocoChange();
