@@ -1595,7 +1595,6 @@ async function generarRotacion(){
   const off=getRotacionDesactivados();
 
   // 3. Mapa FIJO escenario → {maquina, modelo, break}
-  // La máquina y el modelo son propiedades del escenario, no del operador
   const escInfo={};
   opsTurno.forEach(op=>{
     const esc=normEsc(getVal(op,['escenario','Escenario']));
@@ -1608,12 +1607,10 @@ async function generarRotacion(){
   });
 
   // 4. Lista de escenarios activos en orden de rotación
-  //    Solo los que aparecen en opsTurno Y en la lista de rotación Y no están desactivados
   const escActivosOrden=orden.filter(e=>!off.has(e)&&escInfo[e]);
   const escOffOrden    =orden.filter(e=> off.has(e)&&escInfo[e]);
 
   // 5. Lista de operadores con nombre real, en el orden de rotación
-  //    Incluye solo los que tienen escenario en escActivosOrden
   const opMap={};
   opsTurno.forEach(op=>{
     const esc=normEsc(getVal(op,['escenario','Escenario']));
@@ -1630,42 +1627,37 @@ async function generarRotacion(){
     });
 
   // 6. Rotación circular: operador[i] va al escenario que tenía operador[i-1]
-  //    Es decir: el que estaba en escActivosOrden[0] pasa a escActivosOrden[1], etc.
-  //    Mapeamos: escenario_destino → operador_fuente
-  //    Para eso necesitamos: el orden de escenarios que SÍ tienen operador
   const escConOp=escActivosOrden.filter(e=>opMap[e]&&(getVal(opMap[e],['operador','Operador'])||'').trim()&&(getVal(opMap[e],['operador','Operador'])||'').trim()!=='-'&&(getVal(opMap[e],['operador','Operador'])||'').trim()!=='—');
   const nConOp=escConOp.length;
 
-  // rotMap: escenario_destino → escenario_fuente (de donde viene el operador)
-  // El operador de escConOp[i] va a escConOp[(i+1) % nConOp]
   const rotMap={};
   escConOp.forEach((esc,i)=>{
     const escDest=escConOp[(i+1)%nConOp];
-    rotMap[escDest]=esc; // el destino recibe al operador de la fuente
+    rotMap[escDest]=esc;
   });
 
   // 7. Construir resultado
   const resultado=[];
 
   escActivosOrden.forEach(esc=>{
-    const escFuente=rotMap[esc]; // de dónde viene el operador
+    const escFuente=rotMap[esc];
     const opFuente=escFuente?opMap[escFuente]:null;
     const nombre=opFuente?(getVal(opFuente,['operador','Operador'])||'—'):'—';
     const info=escInfo[esc]||{maquina:'—',modelo:'',break:''};
     const sinOp=!nombre||nombre==='—'||nombre==='-';
 
     resultado.push({
-      maquina:  info.maquina,  // FIJO del escenario
+      maquina:  info.maquina,
       escenario:esc,
       operador: nombre,
       turno:    turnoAct,
-      modelo:   info.modelo,   // FIJO del escenario
+      modelo:   info.modelo,
       break:    info.break,
       _sombra:  sinOp
     });
   });
 
-  // 8. Escenarios desactivados (en off pero en escInfo del turno) → sombra
+  // 8. Escenarios desactivados → sombra
   escOffOrden.forEach(esc=>{
     const info=escInfo[esc]||{maquina:'—',modelo:'',break:''};
     resultado.push({
@@ -1693,7 +1685,7 @@ async function generarRotacion(){
     else addLog('Rotación guardada · '+hoyStr+' · turno '+turnoAct);
   }catch(e){console.warn('Error sync operadores:',e);}
 
-  // 10. Texto WhatsApp agrupado por modelo (Trossen primero)
+  // 10. Texto WhatsApp
   const diasSem=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const fechaStr=hoy.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});
   const trossen=resultado.filter(r=>!r._sombra&&r.modelo.toLowerCase().includes('trossen'));
