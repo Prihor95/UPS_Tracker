@@ -1560,18 +1560,173 @@ async function cargarOperadoresPorFecha(fecha){
 async function generarRotacion(){
   const hoy=new Date();
   const diaSemana=hoy.getDay();
-
-  // Día laboral anterior (omite fines de semana y extras)
-  let diasAtras=1;
-  if(diaSemana===1) diasAtras=3; // lunes → viernes
-  if(diaSemana===0) diasAtras=2;
-  const ayer=new Date(hoy); ayer.setDate(ayer.getDate()-diasAtras);
-  const ayerStr=ayer.toISOString().slice(0,10);
   const hoyStr=hoy.toISOString().slice(0,10);
 
   // Turno: tomar del selector si está activo, si no calcular automático
   const turnoSel=((document.getElementById('op-turno-filter')||{}).value||'');
   const turnoAct=turnoSel||getTurnoActual();
+
+  // 1. Cargar operadores del servidor si no hay nada local
+  let opsActuales=operadores||[];
+  if(!opsActuales.length){
+    try{
+      const r=await fetch(settings.api+'?action=operadores&t='+Date.now(),{redirect:'follow'});
+      const d=await r.json();
+      if(d.ok&&d.operadores) opsActuales=d.operadores;
+    }catch(e){}
+  }
+  if(!opsActuales.length){
+    alert('No hay operadores cargados. Usa ↻ Cargar Sheets primero.');return;
+  }
+
+  // 2. Filtrar por turno seleccionado
+  const opsTurno=opsActuales.filter(op=>{
+    const t=(getVal(op,['turno','Turno'])||'').toLowerCase();
+    return !turnoAct||t===turnoAct.toLowerCase();
+  });
+  if(!opsTurno.length){
+    alert('No hay operadores para el turno "'+turnoAct+'". Verifica el filtro o carga los datos del turno correcto.');return;
+  }
+
+  const orden=getRotacionOrden();
+  if(!orden.length){
+    alert('Define el orden de rotación en Ajustes → Rotación.');return;
+  }
+  const off=getRotacionDesactivados();
+
+  // 3. Mapa FIJO escenario → {maquina, modelo, break}
+  // La máquina y el modelo son propiedades del escenario, no del operador
+  const escInfo={};
+  opsTurno.forEach(op=>{
+    const esc=normEsc(getVal(op,['escenario','Escenario']));
+    if(!esc) return;
+    escInfo[esc]={
+      maquina: getVal(op,['maquina','Maquina'])||'—',
+      modelo:  getVal(op,['modelo','Modelo'])||'',
+      break:   getVal(op,['break','Break'])||''
+    };
+  });
+
+  // 4. Lista de escenarios activos en orden de rotación
+  //    Solo los que aparecen en opsTurno Y en la lista de rotación Y no están desactivados
+  const escActivosOrden=orden.filter(e=>!off.has(e)&&escInfo[e]);
+  const escOffOrden    =orden.filter(e=> off.has(e)&&escInfo[e]);
+
+  // 5. Lista de operadores con nombre real, en el orden de rotación
+  //    Incluye solo los que tienen escenario en escActivosOrden
+  const opMap={};
+  opsTurno.forEach(op=>{
+    const esc=normEsc(getVal(op,['escenario','Escenario']));
+    if(esc) opMap[esc]=op;
+  });
+
+  // Operadores disponibles (nombre real, no vacío ni "-")
+  const opsConNombre=escActivosOrden
+    .map(e=>opMap[e])
+    .filter(op=>{
+      if(!op) return false;
+      const nom=(getVal(op,['operador','Operador'])||'').trim();
+      return nom&&nom!=='-'&&nom!=='—';
+    });
+
+  // 6. Rotación circular: operador[i] va al escenario que tenía operador[i-1]
+  //    Es decir: el que estaba en escActivosOrden[0] pasa a escActivosOrden[1], etc.
+  //    Mapeamos: escenario_destino → operador_fuente
+  //    Para eso necesitamos: el orden de escenarios que SÍ tienen operador
+  const escConOp=escActivosOrden.filter(e=>opMap[e]&&(getVal(opMap[e],['operador','Operador'])||'').trim()&&(getVal(opMap[e],['operador','Operador'])||'').trim()!=='-'&&(getVal(opMap[e],['operador','Operador'])||'').trim()!=='—');
+  const nConOp=escConOp.length;
+
+  // rotMap: escenario_destino → escenario_fuente (de donde viene el operador)
+  // El operador de escConOp[i] va a escConOp[(i+1) % nConOp]
+  const rotMap={};
+  escConOp.forEach((esc,i)=>{
+    const escDest=escConOp[(i+1)%nConOp];
+    rotMap[escDest]=esc; // el destino recibe al operador de la fuente
+  });
+
+  // 7. Construir resultado
+  const resultado=[];
+
+  escActivosOrden.forEach(esc=>{
+    const escFuente=rotMap[esc]; // de dónde viene el operador
+    const opFuente=escFuente?opMap[escFuente]:null;
+    const nombre=opFuente?(getVal(opFuente,['operador','Operador'])||'—'):'—';
+    const info=escInfo[esc]||{maquina:'—',modelo:'',break:''};
+    const sinOp=!nombre||nombre==='—'||nombre==='-';
+
+    resultado.push({
+      maquina:  info.maquina,  // FIJO del escenario
+      escenario:esc,
+      operador: nombre,
+      turno:    turnoAct,
+      modelo:   info.modelo,   // FIJO del escenario
+      break:    info.break,
+      _sombra:  sinOp
+    });
+  });
+
+  // 8. Escenarios desactivados (en off pero en escInfo del turno) → sombra
+  escOffOrden.forEach(esc=>{
+    const info=escInfo[esc]||{maquina:'—',modelo:'',break:''};
+    resultado.push({
+      maquina:  info.maquina,
+      escenario:esc,
+      operador: '—',
+      turno:    turnoAct,
+      modelo:   info.modelo,
+      break:    '',
+      _sombra:  true
+    });
+  });
+
+  // 9. Guardar y subir al servidor
+  operadores=resultado;
+  saveLocal();
+  try{
+    const res=await apiPost({
+      action:'guardar_operadores',
+      operadores:resultado,
+      fecha:hoyStr,
+      turno:turnoAct
+    });
+    if(!res.ok) console.warn('Error guardando operadores:',res.error);
+    else addLog('Rotación guardada · '+hoyStr+' · turno '+turnoAct);
+  }catch(e){console.warn('Error sync operadores:',e);}
+
+  // 10. Texto WhatsApp agrupado por modelo (Trossen primero)
+  const diasSem=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const fechaStr=hoy.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});
+  const trossen=resultado.filter(r=>!r._sombra&&r.modelo.toLowerCase().includes('trossen'));
+  const otros  =resultado.filter(r=>!r._sombra&&!r.modelo.toLowerCase().includes('trossen')&&r.modelo);
+  const sombras=resultado.filter(r=>r._sombra&&r.operador!=='—');
+
+  let waText=`*Rotación ${diasSem[diaSemana]} ${fechaStr} — Turno ${turnoAct}*\n`;
+  waText+=`━━━━━━━━━━━━━━━━━━━━\n`;
+  if(trossen.length){
+    waText+=`*🤖 Trossen*\n`;
+    trossen.forEach(r=>{ waText+=`*${r.escenario}* │ ${r.operador}\n`; });
+  }
+  if(otros.length){
+    waText+=`\n*🔵 Yam-0 / Otros*\n`;
+    otros.forEach(r=>{ waText+=`*${r.escenario}* │ ${r.operador}\n`; });
+  }
+  if(sombras.length){
+    waText+=`\n*🟡 Sombras*\n`;
+    sombras.forEach(r=>{ waText+=`${r.escenario} │ ${r.operador} (sombra)\n`; });
+  }
+  waText+=`━━━━━━━━━━━━━━━━━━━━`;
+
+  const waCard=document.getElementById('wa-card');
+  const waEl  =document.getElementById('wa-text');
+  if(waCard&&waEl){
+    waEl.textContent=waText;
+    waCard.style.display='block';
+    waCard.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
+
+  renderOpTable();renderMain();
+  addLog('Rotación generada · '+fechaStr+' · turno '+turnoAct);
+}
 
   // 1. Cargar operadores vigentes (estado actual) del servidor
   let opsActuales=operadores||[];
