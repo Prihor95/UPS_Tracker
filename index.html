@@ -1680,6 +1680,10 @@ async function generarRotacion(){
   });
 
   // 9. Guardar y subir al servidor
+  // Limpiar disabledStations para los escenarios incluidos en la rotación
+  // (solo se deshabilitan los que están en rotacionDesactivados, no todos)
+  escActivosOrden.forEach(e=>disabledStations.delete(e));
+  saveLocal();
   operadores=resultado;
   saveLocal();
   try{
@@ -1713,164 +1717,6 @@ async function generarRotacion(){
   if(sombras.length){
     waText+=`\n*🟡 Sombras*\n`;
     sombras.forEach(r=>{ waText+=`${r.escenario} │ ${r.operador} (sombra)\n`; });
-  }
-  waText+=`━━━━━━━━━━━━━━━━━━━━`;
-
-  const waCard=document.getElementById('wa-card');
-  const waEl  =document.getElementById('wa-text');
-  if(waCard&&waEl){
-    waEl.textContent=waText;
-    waCard.style.display='block';
-    waCard.scrollIntoView({behavior:'smooth',block:'nearest'});
-  }
-
-  renderOpTable();renderMain();
-  addLog('Rotación generada · '+fechaStr+' · turno '+turnoAct);
-}
-
-  // 1. Cargar operadores vigentes (estado actual) del servidor
-  let opsActuales=operadores||[];
-  if(!opsActuales.length){
-    try{
-      const r=await fetch(settings.api+'?action=operadores&t='+Date.now(),{redirect:'follow'});
-      const d=await r.json();
-      if(d.ok&&d.operadores) opsActuales=d.operadores;
-    }catch(e){}
-  }
-  if(!opsActuales.length){
-    alert('No hay operadores cargados. Usa ↻ Cargar Sheets primero.');return;
-  }
-
-  const orden=getRotacionOrden();
-  if(!orden.length){
-    alert('Define el orden de rotación en Ajustes → Rotación.');return;
-  }
-  const off=getRotacionDesactivados();
-
-  // 2. Separar escenarios por modelo usando la lista de operadores
-  // El modelo está asociado al escenario (viene de la hoja, es fijo)
-  const modeloByEsc={};
-  opsActuales.forEach(op=>{
-    const esc=normEsc(getVal(op,['escenario','Escenario']));
-    const mod=(getVal(op,['modelo','Modelo'])||'').toLowerCase();
-    if(esc) modeloByEsc[esc]=mod;
-  });
-
-  // Separar operadores con y sin asignación
-  const opMap={};
-  opsActuales.forEach(op=>{
-    const esc=normEsc(getVal(op,['escenario','Escenario']));
-    if(esc) opMap[esc]=op;
-  });
-
-  // 3. Rotación: para cada escenario activo en orden, asignar el operador
-  //    que estaba UNA posición ANTES en la lista circular
-  const escActivosOrden=orden.filter(e=>!off.has(e));
-  const escOffOrden=orden.filter(e=>off.has(e));
-
-  // Lista ordenada de operadores presentes (siguiendo el orden de rotación)
-  const opsEnOrden=orden.map(e=>opMap[e]).filter(Boolean);
-
-  // Para cada escenario activo[i], el operador que va = el que estaba en escenarios activos[i-1]
-  // Con wrap-around circular
-  const resultado=[];
-
-  escActivosOrden.forEach((esc,i)=>{
-    // Índice del escenario anterior en la lista de activos (circular)
-    const iPrev=(i-1+escActivosOrden.length)%escActivosOrden.length;
-    const escPrev=escActivosOrden[iPrev];
-    const opSource=opMap[escPrev]||null;
-
-    const modeloEsc=modeloByEsc[esc]||'';
-
-    resultado.push({
-      maquina:   opSource?getVal(opSource,['maquina','Maquina']):'—',
-      escenario: esc,
-      operador:  opSource?getVal(opSource,['operador','Operador']):'—',
-      turno:     opSource?getVal(opSource,['turno','Turno']):'tarde',
-      modelo:    modeloByEsc[esc]||getVal(opMap[esc]||{},[' modelo','Modelo'])||'',
-      break:     opSource?getVal(opSource,['break','Break'])||'':'',
-      _sombra:   false
-    });
-  });
-
-  // 4. Operadores sobrantes (en opMap pero no en escActivosOrden) → sombra
-  const escenAsignados=new Set(resultado.map(r=>r.escenario));
-  const opsNoAsignados=opsEnOrden.filter(op=>{
-    const esc=normEsc(getVal(op,['escenario','Escenario']));
-    // Sobrante si su escenario de origen ya tiene alguien nuevo (siempre el caso en rotación circular)
-    // Solo sobrantes reales: más ops que escenarios activos
-    return false; // en rotación 1-a-1 no hay sobrantes a menos que haya más ops que escenarios
-  });
-
-  // Si hay más escenarios activos que operadores con asignación previa
-  const opsDisponibles=opsEnOrden.length;
-  const escActivos=escActivosOrden.length;
-  if(opsDisponibles < escActivos){
-    // Escenarios sin operador → mantener vacío o marcar sombra
-    resultado.forEach((r,i)=>{
-      if(r.operador==='—') r._sombra=true;
-    });
-  }
-
-  // 5. Escenarios desactivados → fila sombra
-  escOffOrden.forEach(esc=>{
-    const op=opMap[esc];
-    resultado.push({
-      maquina:   op?getVal(op,['maquina','Maquina']):'—',
-      escenario: esc,
-      operador:  op?getVal(op,['operador','Operador']):'—',
-      turno:     op?getVal(op,['turno','Turno']):'tarde',
-      modelo:    modeloByEsc[esc]||'',
-      break:     '',
-      _sombra:   true
-    });
-  });
-
-  // 6. Actualizar operadores y subir al servidor con fecha + turno
-  operadores=resultado;
-  saveLocal();
-  try{
-    const res=await apiPost({
-      action:'guardar_operadores',
-      operadores:resultado,
-      fecha:hoyStr,
-      turno:turnoAct
-    });
-    if(!res.ok) console.warn('Error guardando operadores:',res.error);
-    else addLog('Rotación guardada en servidor · '+hoyStr+' · turno '+turnoAct);
-  }catch(e){console.warn('Error sync operadores:',e);}
-
-  // 7. Texto WhatsApp — agrupa por modelo (Trossen primero)
-  const diasSem=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-  const fechaStr=hoy.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});
-  const trossen=resultado.filter(r=>!r._sombra&&r.modelo.toLowerCase().includes('trossen'));
-  const otros  =resultado.filter(r=>!r._sombra&&!r.modelo.toLowerCase().includes('trossen'));
-  const sombras=resultado.filter(r=>r._sombra&&r.operador!=='—');
-
-  let waText=`*Rotación ${diasSem[diaSemana]} ${fechaStr} — Turno ${turnoAct}*
-`;
-  waText+=`━━━━━━━━━━━━━━━━━━━━
-`;
-  if(trossen.length){
-    waText+=`*🤖 Trossen*
-`;
-    trossen.forEach(r=>{ waText+=`*${r.escenario}* │ ${r.operador}
-`; });
-  }
-  if(otros.length){
-    waText+=`
-*🔵 Yam-0 / Otros*
-`;
-    otros.forEach(r=>{ waText+=`*${r.escenario}* │ ${r.operador}
-`; });
-  }
-  if(sombras.length){
-    waText+=`
-*🟡 Sombras*
-`;
-    sombras.forEach(r=>{ waText+=`${r.escenario} │ ${r.operador} (sombra)
-`; });
   }
   waText+=`━━━━━━━━━━━━━━━━━━━━`;
 
