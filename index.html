@@ -3124,41 +3124,30 @@ renderRotChips();
 if(typeof renderEtiquetas==='function')renderEtiquetas();
 if(typeof syncSelectEtiquetas==='function')syncSelectEtiquetas();
 if(typeof onLocoChange==='function')onLocoChange();
-if(bgUrl){
-  const uzl=document.getElementById('uzlbl');if(uzl)uzl.style.display='none';
-  const ii=document.getElementById('iinfo');if(ii)ii.style.display='flex';
-  const in2=document.getElementById('iname');if(in2)in2.textContent='📄 Plano guardado';
-}
-const pfi=document.getElementById('inp-pct-fin');if(pfi)pfi.value=settings.pctFin;
-const pii=document.getElementById('inp-pct-ini');if(pii)pii.value=settings.pctIni;
-updateClock();
-setInterval(updateClock,1000);
 
-// ── AUTO-SYNC cada 30 segundos ──
-// Re-renderiza estimados cada minuto (sin llamar al servidor)
-setInterval(()=>{
-  renderMain();renderAlertas();renderTable();renderOpTable();
-},60000);
+// ⭐ Envolver las llamadas async en una función inmediata
+(async function() {
+  if(bgUrl){
+    const uzl=document.getElementById('uzlbl');if(uzl)uzl.style.display='none';
+    const ii=document.getElementById('iinfo');if(ii)ii.style.display='flex';
+    const in2=document.getElementById('iname');if(in2)in2.textContent='📄 Plano guardado';
+  }
+  const pfi=document.getElementById('inp-pct-fin');if(pfi)pfi.value=settings.pctFin;
+  const pii=document.getElementById('inp-pct-ini');if(pii)pii.value=settings.pctIni;
+  updateClock();
+  setInterval(updateClock,1000);
 
-// Sincroniza con Sheets cada 30 segundos
-let autoSyncInterval=null;
-function iniciarAutoSync(segundos=30){
-  if(autoSyncInterval) clearInterval(autoSyncInterval);
-  autoSyncInterval=setInterval(async()=>{
-    try{
-      const btn=document.getElementById('bsyncbtn');
-      if(btn) btn.textContent='↻ Sincronizando...';
-      await syncFromSheets(true);
-      if(btn) btn.textContent='↻ Sincronizar';
-    }catch(e){
-      const btn=document.getElementById('bsyncbtn');
-      if(btn) btn.textContent='↻ Sincronizar';
-    }
-  }, segundos*1000);
-}
+  // Auto-sync cada 30 segundos
+  setInterval(()=>{
+    renderMain();renderAlertas();renderTable();renderOpTable();
+  },60000);
 
-iniciarAutoSync(30); // cada 30 segundos
-
+  iniciarAutoSync(30);
+  
+  // Sync inicial
+  setTimeout(() => syncFromSheets(true), 500);
+  setTimeout(() => syncOperadores(), 3000);
+})();
 // Sync inicial en segundo plano
 setTimeout(()=>syncFromSheets(true),500);
 setTimeout(()=>syncOperadores(),3000);
