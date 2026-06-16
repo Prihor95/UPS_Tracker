@@ -164,6 +164,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .rot-chip.toggle{cursor:pointer}
 .rot-chip.toggle:hover{opacity:.75}
 .rot-wa{font-family:monospace;font-size:12px;line-height:1.6;background:#F5F5F7;padding:12px;border-radius:8px;border:1px solid #E0E0E0;white-space:pre-wrap;word-break:break-word;max-height:260px;overflow-y:auto;color:#333}
+/* BREAK */
+.break-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:600;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;white-space:nowrap}
+.break-btn{padding:3px 9px;font-size:11px;border:1px solid #E0E0E0;border-radius:5px;background:none;color:#555;cursor:pointer;white-space:nowrap}
+.break-btn:hover{background:#F5F5F7}
+.break-btn.start{border-color:#FB8C00;color:#E65100}
+.break-btn.start:hover{background:#FFF3E0}
+.break-btn.end{border-color:#34A853;color:#137333}
+.break-btn.end:hover{background:#E6F4EA}
 /* DOWNTIMES */
 .dt-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:600;white-space:nowrap}
 .dt-active{background:#FDE8E8;color:#C5221F;border:1px solid #F5C6C6}
@@ -329,6 +337,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Bat. ID</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Cambio est.</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Downtime</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Break</th>
           <th style="padding:10px 6px;width:60px"></th>
         </tr>
       </thead>
@@ -655,6 +664,34 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
     </div>
 
+    <!-- Break de operadores -->
+    <div class="card" style="grid-column:1/-1">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="ctitle" style="margin-bottom:0">☕ Tipos de Break de Operadores</div>
+        <button class="abtn" onclick="abrirModalBreak(null)">+ Nuevo</button>
+      </div>
+      <div style="font-size:11px;color:#888;margin-bottom:10px">
+        Define los motivos de break disponibles. Al activar un break desde la pestaña <b>Operación</b>, el tiempo de la batería queda en pausa automáticamente hasta que el operador regrese.
+      </div>
+      <div id="brk-templates-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+      <div style="padding:8px;background:#FFF3E0;border:1px solid #FFE0B2;border-radius:6px;font-size:11px;color:#E65100">
+        ☕ Los breaks <b>siempre pausan</b> el conteo de batería. Se inician por estación desde la pestaña Operación.
+      </div>
+    </div>
+
+    <!-- Modal break template -->
+    <div id="brk-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center">
+      <div style="background:#fff;border-radius:14px;padding:24px;width:320px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,.18)">
+        <div style="font-size:15px;font-weight:600;margin-bottom:16px" id="brk-modal-title">Nuevo tipo de break</div>
+        <div style="font-size:11px;color:#888;margin-bottom:4px">Nombre del break</div>
+        <input class="inp" id="brk-m-label" placeholder="Ej: ☕ Café, 🚻 Baño, 📋 Reunión"/>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-primary" style="flex:1" onclick="guardarBreakTpl()">Guardar</button>
+          <button class="btn" style="flex:1" onclick="document.getElementById('brk-modal').style.display='none'">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal downtime template -->
     <div id="dt-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center">
       <div style="background:#fff;border-radius:14px;padding:24px;width:360px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,.18)">
@@ -803,6 +840,12 @@ let settings={
     {id:'break-noche',label:'☕ Break noche',   pausa:true,  tipo:'fijo', turno:'noche',  ini:'02:00', fin:'03:00'},
     {id:'mtto',       label:'🔧 Mantenimiento', pausa:true,  tipo:'manual'},
     {id:'falla-maq',  label:'⚠ Falla máquina',  pausa:false, tipo:'manual'}
+  ],
+  // Tipos de break de operadores (pausan la batería automáticamente)
+  breakTemplates:[
+    {id:'break-cafe', label:'☕ Break café'},
+    {id:'break-banio',label:'🚻 Baño'},
+    {id:'break-otro', label:'🔄 Otro'}
   ]
 };
 let selSt=null, eMode='move', eSel=null, drag=false, dOff={x:0,y:0};
@@ -938,8 +981,9 @@ function estimarPorcentaje(estacion){
   // Descontar además downtimes manuales completados que pausan la batería
   const dts=asgn._downtimes||[];
   dts.forEach(dt=>{
+    // Descontar si: es un break de operador (_esBreak) O es downtime con pausa
     const tpl=(settings.downtimeTemplates||[]).find(t=>t.id===dt.tipo);
-    if(!tpl||!tpl.pausa) return; // solo los que pausan
+    if(!dt._esBreak && (!tpl||!tpl.pausa)) return;
     const dtIni=parseTS(dt.inicio);
     const dtFin=dt.fin?parseTS(dt.fin):new Date(); // si está activo, hasta ahora
     if(!dtIni) return;
@@ -966,7 +1010,7 @@ function estimarHoraCambio(estacion){
   const dts=asgn._downtimes||[];
   dts.forEach(dt=>{
     const tpl=(settings.downtimeTemplates||[]).find(t=>t.id===dt.tipo);
-    if(!tpl||!tpl.pausa) return;
+    if(!dt._esBreak && (!tpl||!tpl.pausa)) return;
     const dtIni=parseTS(dt.inicio);
     const dtFin=dt.fin?parseTS(dt.fin):new Date();
     if(!dtIni) return;
@@ -1895,6 +1939,66 @@ function eliminarDT(id){
   saveLocal();renderDTTemplates();renderOpTable();
 }
 
+// ══ BREAK TEMPLATE CRUD ══
+let brkEditId=null;
+
+function renderBreakTemplates(){
+  const el=document.getElementById('brk-templates-list');
+  if(!el) return;
+  const tpls=settings.breakTemplates||[];
+  if(!tpls.length){
+    el.innerHTML='<div style="color:#AAA;font-size:12px;text-align:center;padding:10px">Sin tipos de break. Agrega uno con + Nuevo.</div>';
+    return;
+  }
+  el.innerHTML=tpls.map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px;background:#FFF8EE;border:1px solid #FFE0B2;border-radius:7px">
+      <span style="flex:1;font-size:13px;font-weight:500">${t.label}</span>
+      <span style="padding:1px 8px;border-radius:99px;font-size:10px;font-weight:600;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80">⏸ Pausa bat.</span>
+      <button class="bsm" onclick="abrirModalBreak('${t.id}')">✎</button>
+      <button class="bsm bdanger" onclick="eliminarBreakTpl('${t.id}')">✕</button>
+    </div>
+  `).join('');
+}
+
+function abrirModalBreak(id){
+  brkEditId=id;
+  const modal=document.getElementById('brk-modal');if(!modal)return;
+  document.getElementById('brk-modal-title').textContent=id?'Editar tipo de break':'Nuevo tipo de break';
+  if(id){
+    const t=(settings.breakTemplates||[]).find(x=>x.id===id);
+    if(!t)return;
+    document.getElementById('brk-m-label').value=t.label||'';
+  } else {
+    document.getElementById('brk-m-label').value='';
+  }
+  modal.style.display='flex';
+}
+
+function guardarBreakTpl(){
+  const label=document.getElementById('brk-m-label').value.trim();
+  if(!label){alert('Escribe un nombre para el break');return;}
+  if(!settings.breakTemplates) settings.breakTemplates=[];
+  if(brkEditId){
+    const idx=settings.breakTemplates.findIndex(t=>t.id===brkEditId);
+    if(idx>=0) settings.breakTemplates[idx]={...settings.breakTemplates[idx],label};
+  } else {
+    const id='brk-'+Date.now();
+    settings.breakTemplates.push({id, label});
+  }
+  document.getElementById('brk-modal').style.display='none';
+  saveLocal();
+  publicarSettings();
+  renderBreakTemplates();
+  renderOpTable();
+  addLog('Break templates: "'+label+'" '+(brkEditId?'editado':'agregado'));
+}
+
+function eliminarBreakTpl(id){
+  if(!confirm('¿Eliminar este tipo de break?')) return;
+  settings.breakTemplates=(settings.breakTemplates||[]).filter(t=>t.id!==id);
+  saveLocal();publicarSettings();renderBreakTemplates();renderOpTable();
+}
+
 function renderAll(){renderMain();renderEdit();renderTable();renderInv();renderLog();renderAlertas();renderPromedios();}
 
 // ══ TOOLTIP RICO ══
@@ -2749,10 +2853,12 @@ function renderOpTable(){
     // Sombra flag from operadores list
     const esSombraOp=!!(getVal(operadores[idx]||{},['_sombra'])===true||(asgn&&asgn._estado==='sombra'));
     const sombraStyle=esSombraOp?'font-style:italic;color:#B06000':'';
+    const enBreakRow=!!(asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak));
 
-    return `<tr style="${disabled?'opacity:.45':''}">
+    return `<tr style="${disabled?'opacity:.45':enBreakRow?'background:#FFF8E1':''}">
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
         <span style="display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;background:#E6F4EA;color:#137333">${maq}</span>
+        ${enBreakRow?'<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#FFF3E0;color:#E65100;margin-left:4px">☕ break</span>':''}
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-weight:500">${esc||'—'}</td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;${sombraStyle}">
@@ -2787,6 +2893,27 @@ function renderOpTable(){
         ${hora?'<span style="color:#1A73E8">~'+hora+'</span>':'<span style="color:#AAA">—</span>'}
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">${dtCell}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
+        ${(()=>{
+          const brkTpls=(settings.breakTemplates||[]);
+          if(!brkTpls.length) return '<span style="color:#AAA;font-size:11px">Sin tipos</span>';
+          if(!asgn||!asgn.upe_id) return '<span style="color:#CCC;font-size:11px">—</span>';
+          const activeBreak=(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
+          if(activeBreak){
+            const tpl=brkTpls.find(t=>t.id===activeBreak.tipo)||{label:activeBreak.tipo};
+            const durMin=Math.round((Date.now()-new Date(activeBreak._tsStart||activeBreak.inicio))/60000);
+            return `<div style="display:flex;flex-direction:column;gap:4px">
+              <span class="break-badge">☕ ${tpl.label} · ${durMin}m</span>
+              <button class="break-btn end" onclick="terminarBreak('${esc}')">✓ Regresar</button>
+            </div>`;
+          }
+          const opts=brkTpls.map(t=>`<option value="${t.id}">${t.label}</option>`).join('');
+          return `<div style="display:flex;gap:4px;align-items:center">
+            <select class="ainp" id="brk-sel-${esc}" style="font-size:11px;padding:3px 5px;height:26px">${opts}</select>
+            <button class="break-btn start" onclick="iniciarBreak('${esc}')">☕</button>
+          </div>`;
+        })()}
+      </td>
       <td style="padding:8px 6px;border-bottom:1px solid #F5F5F5;white-space:nowrap">${editBtns}</td>
     </tr>`;
   }).join('');
@@ -2867,6 +2994,59 @@ async function guardarFilaOp(){
   }
 }
 
+function iniciarBreak(estacion){
+  const sel=document.getElementById('brk-sel-'+estacion);
+  if(!sel||!sel.value) return;
+  const tipo=sel.value;
+  const tpl=(settings.breakTemplates||[]).find(t=>t.id===tipo);
+  if(!tpl) return;
+  if(!assignments[estacion]||!assignments[estacion].upe_id){
+    alert('No hay batería asignada en '+estacion+'. El break solo pausa la batería cuando hay una asignada.'); return;
+  }
+  if(!assignments[estacion]._downtimes) assignments[estacion]._downtimes=[];
+  // No permitir 2 pausas activas (break o downtime)
+  if(assignments[estacion]._downtimes.find(d=>!d.fin)){
+    alert('Ya hay un paro activo en '+estacion+'. Termínalo primero.'); return;
+  }
+  const now=tsISO();
+  assignments[estacion]._downtimes.push({tipo, inicio:now, fin:null, _tsStart:Date.now(), _esBreak:true});
+  saveLocal();
+  addLog(estacion+': break iniciado — '+tpl.label);
+  apiPost({action:'asignar_forzado',
+    estacion, upe_id:assignments[estacion].upe_id,
+    timestamp:assignments[estacion].timestamp,
+    turno:assignments[estacion].turno||getTurnoActual(),
+    pct_inicio:assignments[estacion].pct_inicio||100,
+    pct_fin:assignments[estacion].pct_fin||settings.pctFin,
+    locomotion:assignments[estacion].locomotion||false,
+    etiqueta:assignments[estacion].etiqueta||'',
+    _downtimes:assignments[estacion]._downtimes||[]
+  }).catch(()=>{});
+  renderOpTable();renderMain();renderAlertas();
+}
+
+function terminarBreak(estacion){
+  if(!assignments[estacion]||!assignments[estacion]._downtimes) return;
+  const dt=assignments[estacion]._downtimes.find(d=>!d.fin&&d._esBreak);
+  if(!dt) return;
+  dt.fin=tsISO();
+  const durMin=Math.round((parseTS(dt.fin)-parseTS(dt.inicio))/60000);
+  const tpl=(settings.breakTemplates||[]).find(t=>t.id===dt.tipo)||{label:dt.tipo};
+  saveLocal();
+  addLog(estacion+': break terminado — '+tpl.label+' ('+durMin+' min)');
+  apiPost({action:'asignar_forzado',
+    estacion, upe_id:assignments[estacion].upe_id,
+    timestamp:assignments[estacion].timestamp,
+    turno:assignments[estacion].turno||getTurnoActual(),
+    pct_inicio:assignments[estacion].pct_inicio||100,
+    pct_fin:assignments[estacion].pct_fin||settings.pctFin,
+    locomotion:assignments[estacion].locomotion||false,
+    etiqueta:assignments[estacion].etiqueta||'',
+    _downtimes:assignments[estacion]._downtimes||[]
+  }).catch(()=>{});
+  renderOpTable();renderMain();renderAlertas();
+}
+
 async function eliminarFilaOp(idx){
   if(!confirm('¿Eliminar esta fila?'))return;
   operadores.splice(idx,1);saveLocal();renderOpTable();
@@ -2945,7 +3125,7 @@ function sw(name,btn){
   if(name==='tabla')renderTable();
   if(name==='almacen')renderInv();
   if(name==='editar'){applyBg();renderEdit();setupEdit();actualizarSelectMaquinas();}
-  if(name==='ajustes'){renderPromedios();loadSettingsUI();renderMaquinas();renderDTTemplates();renderRotChips();}
+  if(name==='ajustes'){renderPromedios();loadSettingsUI();renderMaquinas();renderDTTemplates();renderRotChips();renderBreakTemplates();}
   if(name==='croquis'){renderMain();renderAlertas();}
   if(name==='operacion'){renderOpTable();renderCambios();}
 }
@@ -2978,6 +3158,7 @@ renderRotChips();
 if(typeof renderEtiquetas==='function')renderEtiquetas();
 if(typeof syncSelectEtiquetas==='function')syncSelectEtiquetas();
 if(typeof onLocoChange==='function')onLocoChange();
+renderBreakTemplates();
 if(bgUrl){
   const uzl=document.getElementById('uzlbl');if(uzl)uzl.style.display='none';
   const ii=document.getElementById('iinfo');if(ii)ii.style.display='flex';
