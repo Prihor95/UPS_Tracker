@@ -164,14 +164,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .rot-chip.toggle{cursor:pointer}
 .rot-chip.toggle:hover{opacity:.75}
 .rot-wa{font-family:monospace;font-size:12px;line-height:1.6;background:#F5F5F7;padding:12px;border-radius:8px;border:1px solid #E0E0E0;white-space:pre-wrap;word-break:break-word;max-height:260px;overflow-y:auto;color:#333}
-/* BREAK */
-.break-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:600;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;white-space:nowrap}
-.break-btn{padding:3px 9px;font-size:11px;border:1px solid #E0E0E0;border-radius:5px;background:none;color:#555;cursor:pointer;white-space:nowrap}
-.break-btn:hover{background:#F5F5F7}
-.break-btn.start{border-color:#FB8C00;color:#E65100}
-.break-btn.start:hover{background:#FFF3E0}
-.break-btn.end{border-color:#34A853;color:#137333}
-.break-btn.end:hover{background:#E6F4EA}
 /* DOWNTIMES */
 .dt-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:600;white-space:nowrap}
 .dt-active{background:#FDE8E8;color:#C5221F;border:1px solid #F5C6C6}
@@ -331,13 +323,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Escenario</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Operador</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Turno</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Break</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Modelo</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Estado bat.</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">% Bat.</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Bat. ID</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Cambio est.</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Downtime</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Break</th>
           <th style="padding:10px 6px;width:60px"></th>
         </tr>
       </thead>
@@ -394,6 +386,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <option value="mañana">Mañana</option>
       <option value="tarde">Tarde</option>
       <option value="noche">Noche</option>
+    </select>
+    <label class="flabel">Break (hora)</label>
+    <select class="inp" id="op-m-break">
+      <option value="">— sin break —</option>
     </select>
     <div style="display:flex;gap:8px;margin-top:6px">
       <button class="btn btn-primary" onclick="guardarFilaOp()">Guardar</button>
@@ -624,6 +620,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
     </div>
 
+    <!-- Breaks de operador -->
+    <div class="card">
+      <div class="ctitle">☕ Breaks de operador</div>
+      <div style="font-size:11px;color:#888;margin-bottom:10px">Horas disponibles en el dropdown <b>Break</b> de la pestaña Operación. Durante el break se <b>pausa la descarga</b> de la batería de ese operador y se reanuda al terminar.</div>
+      <div class="setting-row">
+        <div><div class="setting-label">Duración del break (min)</div><div class="setting-desc">Cada turno la ajusta según el día</div></div>
+        <input class="setting-inp" id="set-break-dur" type="number" min="5" max="120" value="30" onchange="updBreakDur(this.value)"/>
+      </div>
+      <div style="font-size:11px;color:#888;margin:10px 0 6px;font-weight:500">Horas disponibles</div>
+      <div id="break-options-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:6px">
+        <input class="ainp" id="inp-nuevo-break" type="time" style="flex:1"/>
+        <button class="abtn" onclick="addBreakOption()">+ Agregar hora</button>
+      </div>
+    </div>
+
+    <!-- Horarios de turno -->
+    <div class="card" style="grid-column:1/-1">
+      <div class="ctitle">🕐 Horarios de turno</div>
+      <div style="font-size:11px;color:#888;margin-bottom:10px">
+        Define los turnos y sus horarios. El turno se detecta automáticamente por la hora. Un turno puede cruzar la medianoche poniendo la hora de fin menor que la de inicio (ej. noche <b>22:30 → 06:30</b>). Los cambios se publican al servidor para todas las PCs.
+      </div>
+      <div id="turnos-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <input class="ainp" id="inp-turno-nombre" placeholder="Nombre (ej: noche)" style="flex:1;min-width:120px"/>
+        <input class="ainp" id="inp-turno-ini" type="time" value="22:30" style="width:130px" title="Inicio"/>
+        <input class="ainp" id="inp-turno-fin" type="time" value="06:30" style="width:130px" title="Fin"/>
+        <button class="abtn" onclick="addTurno()">+ Agregar turno</button>
+      </div>
+    </div>
+
     <!-- Rotación -->
     <div class="card" style="grid-column:1/-1">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -661,34 +688,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div id="dt-templates-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
       <div style="padding:8px;background:#F5F5F7;border-radius:6px;font-size:11px;color:#666">
         💡 Los downtimes <b>fijos</b> se aplican automáticamente a todas las estaciones en su turno. Los <b>manuales</b> se activan por estación desde Operación.
-      </div>
-    </div>
-
-    <!-- Break de operadores -->
-    <div class="card" style="grid-column:1/-1">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div class="ctitle" style="margin-bottom:0">☕ Tipos de Break de Operadores</div>
-        <button class="abtn" onclick="abrirModalBreak(null)">+ Nuevo</button>
-      </div>
-      <div style="font-size:11px;color:#888;margin-bottom:10px">
-        Define los motivos de break disponibles. Al activar un break desde la pestaña <b>Operación</b>, el tiempo de la batería queda en pausa automáticamente hasta que el operador regrese.
-      </div>
-      <div id="brk-templates-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
-      <div style="padding:8px;background:#FFF3E0;border:1px solid #FFE0B2;border-radius:6px;font-size:11px;color:#E65100">
-        ☕ Los breaks <b>siempre pausan</b> el conteo de batería. Se inician por estación desde la pestaña Operación.
-      </div>
-    </div>
-
-    <!-- Modal break template -->
-    <div id="brk-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center">
-      <div style="background:#fff;border-radius:14px;padding:24px;width:320px;max-width:95vw;box-shadow:0 8px 40px rgba(0,0,0,.18)">
-        <div style="font-size:15px;font-weight:600;margin-bottom:16px" id="brk-modal-title">Nuevo tipo de break</div>
-        <div style="font-size:11px;color:#888;margin-bottom:4px">Nombre del break</div>
-        <input class="inp" id="brk-m-label" placeholder="Ej: ☕ Café, 🚻 Baño, 📋 Reunión"/>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-primary" style="flex:1" onclick="guardarBreakTpl()">Guardar</button>
-          <button class="btn" style="flex:1" onclick="document.getElementById('brk-modal').style.display='none'">Cancelar</button>
-        </div>
       </div>
     </div>
 
@@ -841,32 +840,50 @@ let settings={
     {id:'mtto',       label:'🔧 Mantenimiento', pausa:true,  tipo:'manual'},
     {id:'falla-maq',  label:'⚠ Falla máquina',  pausa:false, tipo:'manual'}
   ],
-  // Tipos de break de operadores (pausan la batería automáticamente)
-  breakTemplates:[
-    {id:'break-cafe', label:'☕ Break café'},
-    {id:'break-banio',label:'🚻 Baño'},
-    {id:'break-otro', label:'🔄 Otro'}
-  ]
+  // Horarios de turno configurables (HH:MM). Un turno puede cruzar medianoche (fin<ini)
+  turnos:[
+    {nombre:'mañana', ini:'06:30', fin:'15:00'},
+    {nombre:'tarde',  ini:'15:00', fin:'22:30'}
+  ],
+  // Breaks individuales de operador (se pausa la descarga durante el break)
+  breakDuracion:30,                                          // minutos
+  breakOptions:['12:00','12:30','13:00','13:30','14:00','19:00','19:30','20:00']
 };
+// Defaults usados como respaldo si los settings llegan vacíos del servidor
+const DEFAULT_TURNOS=[
+  {nombre:'mañana', ini:'06:30', fin:'15:00'},
+  {nombre:'tarde',  ini:'15:00', fin:'22:30'}
+];
+const DEFAULT_BREAK_OPTS=['12:00','12:30','13:00','13:30','14:00','19:00','19:30','20:00'];
 let selSt=null, eMode='move', eSel=null, drag=false, dOff={x:0,y:0};
 
 const DEFS={J17:{x:460,y:75},J14:{x:510,y:75},J15:{x:555,y:75},J22:{x:600,y:75},J46:{x:650,y:75},J11:{x:420,y:140},J53:{x:270,y:260},J51:{x:340,y:260},J48:{x:445,y:270},J5:{x:525,y:270},J42:{x:590,y:270},J40:{x:650,y:270},J37:{x:460,y:370},J34:{x:560,y:370},J31:{x:650,y:370}};
 
 // ══ TURNOS ══
-const TURNOS = [
-  { nombre:'mañana', ini: 7*60,    fin: 16*60+36, breaks:[{s:13*60, e:14*60}] },
-  { nombre:'tarde',  ini: 16*60+36,fin: 22*60,    breaks:[{s:19*60+6,e:19*60+36}] },
-  { nombre:'noche',  ini: 22*60,   fin: 24*60+7*60,breaks:[{s:2*60,e:3*60}] }
-];
+// Helpers de tiempo en minutos
+function hhmmToMin(s){const p=String(s||'0:0').split(':');return (Number(p[0])||0)*60+(Number(p[1])||0);}
+function capTurno(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
+function getTurnosCfg(){return (settings.turnos&&settings.turnos.length)?settings.turnos:DEFAULT_TURNOS;}
+
+// Garantiza que existan los defaults de turnos/breaks (por si llegan settings viejos)
+function ensureShiftDefaults(){
+  if(!Array.isArray(settings.turnos)||!settings.turnos.length) settings.turnos=JSON.parse(JSON.stringify(DEFAULT_TURNOS));
+  if(!Array.isArray(settings.breakOptions)) settings.breakOptions=DEFAULT_BREAK_OPTS.slice();
+  if(!settings.breakDuracion) settings.breakDuracion=30;
+}
 
 function getTurnoActual(){
   const now=new Date();
   const d=now.getDay();
   if(d===0||d===6) return 'finde';
   const m=now.getHours()*60+now.getMinutes();
-  if(m>=7*60 && m<16*60+36) return 'mañana';
-  if(m>=16*60+36 && m<22*60) return 'tarde';
-  return 'noche';
+  const turnos=getTurnosCfg();
+  for(const t of turnos){
+    const ini=hhmmToMin(t.ini), fin=hhmmToMin(t.fin);
+    if(fin>ini){ if(m>=ini && m<fin) return t.nombre; }     // mismo día
+    else        { if(m>=ini || m<fin) return t.nombre; }     // cruza medianoche
+  }
+  return 'finde'; // fuera de cualquier turno
 }
 
 function turnoColor(t){
@@ -900,7 +917,7 @@ function parseTS(s){
   return isNaN(d.getTime())?null:d;
 }
 
-function calcEfectivo(inicioStr, finStr){
+function calcEfectivo(inicioStr, finStr, extraBreaks){
   if(!inicioStr) return 0;
   try{
     const ini=parseTS(inicioStr);
@@ -917,6 +934,8 @@ function calcEfectivo(inicioStr, finStr){
       const [he,me]=t.fin.split(':').map(Number);
       return [hs*60+ms, he*60+me];
     });
+    // Breaks adicionales (ej. break individual del operador): [startMin,endMin]
+    if(Array.isArray(extraBreaks)) extraBreaks.forEach(b=>{ if(b&&b.length===2) fixedBreaks.push(b); });
 
     while(cursor<fin){
       const offMin = getMexOffset(cursor)==='-05:00' ? -5*60 : -6*60;
@@ -966,6 +985,17 @@ function getPromedio(upe_id, esLoco){
   return manual>0 ? {val:manual, fuente:'manual', ciclos:ciclosReales} : null;
 }
 
+// Ventana de break individual del operador asignado a una estación → [iniMin, finMin]
+function getOperadorBreakWin(estacion){
+  const op=(operadores||[]).find(o=>normEsc(getVal(o,['escenario','Escenario']))===estacion);
+  if(!op) return null;
+  const brk=getVal(op,['break','Break']);
+  if(!brk||!/^\d{1,2}:\d{2}$/.test(brk)) return null;
+  const dur=settings.breakDuracion||30;
+  const s=hhmmToMin(brk);
+  return [s, s+dur];
+}
+
 // Porcentaje estimado actual de una batería en una estación
 // El promedio (p.val) representa la duración del rango de referencia completo:
 // 100% → pctFin (settings). Si la batería se montó con pctIni diferente,
@@ -976,14 +1006,14 @@ function estimarPorcentaje(estacion){
   const esLoco=!!asgn.locomotion;
   const p=getPromedio(asgn.upe_id, esLoco);
   if(!p) return null;
-  // Tiempo efectivo descontando breaks fijos (comida, etc.)
-  let transcurrido=calcEfectivo(asgn.timestamp, tsISO());
+  // Tiempo efectivo descontando breaks fijos (comida, etc.) + break individual del operador
+  const brkWin=getOperadorBreakWin(estacion);
+  let transcurrido=calcEfectivo(asgn.timestamp, tsISO(), brkWin?[brkWin]:[]);
   // Descontar además downtimes manuales completados que pausan la batería
   const dts=asgn._downtimes||[];
   dts.forEach(dt=>{
-    // Descontar si: es un break de operador (_esBreak) O es downtime con pausa
     const tpl=(settings.downtimeTemplates||[]).find(t=>t.id===dt.tipo);
-    if(!dt._esBreak && (!tpl||!tpl.pausa)) return;
+    if(!tpl||!tpl.pausa) return; // solo los que pausan
     const dtIni=parseTS(dt.inicio);
     const dtFin=dt.fin?parseTS(dt.fin):new Date(); // si está activo, hasta ahora
     if(!dtIni) return;
@@ -1006,11 +1036,12 @@ function estimarHoraCambio(estacion){
   const esLoco=!!asgn.locomotion;
   const p=getPromedio(asgn.upe_id, esLoco);
   if(!p) return null;
-  let transcurrido=calcEfectivo(asgn.timestamp, tsISO());
+  const brkWin=getOperadorBreakWin(estacion);
+  let transcurrido=calcEfectivo(asgn.timestamp, tsISO(), brkWin?[brkWin]:[]);
   const dts=asgn._downtimes||[];
   dts.forEach(dt=>{
     const tpl=(settings.downtimeTemplates||[]).find(t=>t.id===dt.tipo);
-    if(!dt._esBreak && (!tpl||!tpl.pausa)) return;
+    if(!tpl||!tpl.pausa) return;
     const dtIni=parseTS(dt.inicio);
     const dtFin=dt.fin?parseTS(dt.fin):new Date();
     if(!dtIni) return;
@@ -1046,6 +1077,7 @@ function loadLocal(){
     if(!settings.api || settings.api.indexOf('script.google.com')===-1 || settings.api!==DEFAULT_API)
       settings.api=DEFAULT_API;
   }catch(e){}
+  ensureShiftDefaults();
 }
 
 function saveLocal(){
@@ -1939,66 +1971,6 @@ function eliminarDT(id){
   saveLocal();renderDTTemplates();renderOpTable();
 }
 
-// ══ BREAK TEMPLATE CRUD ══
-let brkEditId=null;
-
-function renderBreakTemplates(){
-  const el=document.getElementById('brk-templates-list');
-  if(!el) return;
-  const tpls=settings.breakTemplates||[];
-  if(!tpls.length){
-    el.innerHTML='<div style="color:#AAA;font-size:12px;text-align:center;padding:10px">Sin tipos de break. Agrega uno con + Nuevo.</div>';
-    return;
-  }
-  el.innerHTML=tpls.map((t,i)=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:8px;background:#FFF8EE;border:1px solid #FFE0B2;border-radius:7px">
-      <span style="flex:1;font-size:13px;font-weight:500">${t.label}</span>
-      <span style="padding:1px 8px;border-radius:99px;font-size:10px;font-weight:600;background:#FFF3E0;color:#E65100;border:1px solid #FFCC80">⏸ Pausa bat.</span>
-      <button class="bsm" onclick="abrirModalBreak('${t.id}')">✎</button>
-      <button class="bsm bdanger" onclick="eliminarBreakTpl('${t.id}')">✕</button>
-    </div>
-  `).join('');
-}
-
-function abrirModalBreak(id){
-  brkEditId=id;
-  const modal=document.getElementById('brk-modal');if(!modal)return;
-  document.getElementById('brk-modal-title').textContent=id?'Editar tipo de break':'Nuevo tipo de break';
-  if(id){
-    const t=(settings.breakTemplates||[]).find(x=>x.id===id);
-    if(!t)return;
-    document.getElementById('brk-m-label').value=t.label||'';
-  } else {
-    document.getElementById('brk-m-label').value='';
-  }
-  modal.style.display='flex';
-}
-
-function guardarBreakTpl(){
-  const label=document.getElementById('brk-m-label').value.trim();
-  if(!label){alert('Escribe un nombre para el break');return;}
-  if(!settings.breakTemplates) settings.breakTemplates=[];
-  if(brkEditId){
-    const idx=settings.breakTemplates.findIndex(t=>t.id===brkEditId);
-    if(idx>=0) settings.breakTemplates[idx]={...settings.breakTemplates[idx],label};
-  } else {
-    const id='brk-'+Date.now();
-    settings.breakTemplates.push({id, label});
-  }
-  document.getElementById('brk-modal').style.display='none';
-  saveLocal();
-  publicarSettings();
-  renderBreakTemplates();
-  renderOpTable();
-  addLog('Break templates: "'+label+'" '+(brkEditId?'editado':'agregado'));
-}
-
-function eliminarBreakTpl(id){
-  if(!confirm('¿Eliminar este tipo de break?')) return;
-  settings.breakTemplates=(settings.breakTemplates||[]).filter(t=>t.id!==id);
-  saveLocal();publicarSettings();renderBreakTemplates();renderOpTable();
-}
-
 function renderAll(){renderMain();renderEdit();renderTable();renderInv();renderLog();renderAlertas();renderPromedios();}
 
 // ══ TOOLTIP RICO ══
@@ -2449,6 +2421,7 @@ uz.addEventListener('drop',e=>{e.preventDefault();uz.style.borderColor='';const 
 function loadSettingsUI(){
   const safe=(id,val)=>{const el=document.getElementById(id);if(el)el.value=val;};
   const safeT=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
+  ensureShiftDefaults();
   safe('set-pct-fin',settings.pctFin);
   safe('set-pct-ini',settings.pctIni);
   safe('set-alerta',settings.alerta);
@@ -2457,6 +2430,10 @@ function loadSettingsUI(){
   safe('set-min-ciclos',settings.minCiclos||5);
   safeT('min-ciclos-lbl',settings.minCiclos||5);
   safe('set-api',settings.api||DEFAULT_API);
+  safe('set-break-dur',settings.breakDuracion||30);
+  if(typeof renderTurnos==='function')renderTurnos();
+  if(typeof renderBreakOptions==='function')renderBreakOptions();
+  if(typeof refreshTurnoSelects==='function')refreshTurnoSelects();
 }
 
 function saveSettings(){
@@ -2770,6 +2747,7 @@ function getVal(op,keys){for(const k of keys){if(op[k]!==undefined&&op[k]!=='')r
 
 function renderOpTable(){
   const tbody=document.getElementById('op-tbody');if(!tbody)return;
+  refreshTurnoSelects();
   const fl=((document.getElementById('op-filter')||{}).value||'').toLowerCase();
   const turnoFiltro=((document.getElementById('op-turno-filter')||{}).value||'').toLowerCase();
   const rows=[];
@@ -2780,8 +2758,9 @@ function renderOpTable(){
     const oper=getVal(op,['operador','Operador'])||'—';
     const turnoOp=getVal(op,['turno','Turno'])||'—';
     const modelo=getVal(op,['modelo','Modelo'])||'';
+    const brk=getVal(op,['break','Break'])||'';
     const asgn=assignments[esc]||null;
-    rows.push({esc,maq,oper,turnoOp,modelo,asgn,
+    rows.push({esc,maq,oper,turnoOp,modelo,brk,asgn,
       pct:asgn?estimarPorcentaje(esc):null,
       hora:asgn?estimarHoraCambio(esc):null,
       idx,disabled:disabledStations.has(esc)});
@@ -2790,7 +2769,7 @@ function renderOpTable(){
   Object.entries(assignments).forEach(([esc,asgn])=>{
     if(!asgn||!asgn.upe_id)return;
     if((operadores||[]).find(o=>normEsc(getVal(o,['escenario','Escenario']))===esc))return;
-    rows.push({esc,maq:'—',oper:'—',turnoOp:'—',modelo:'',asgn,
+    rows.push({esc,maq:'—',oper:'—',turnoOp:'—',modelo:'',brk:'',asgn,
       pct:estimarPorcentaje(esc),hora:estimarHoraCambio(esc),
       idx:-1,disabled:disabledStations.has(esc)});
   });
@@ -2800,13 +2779,13 @@ function renderOpTable(){
     .filter(r=>!turnoFiltro || (r.turnoOp||'').toLowerCase()===turnoFiltro);
 
   if(!filtered.length){
-    tbody.innerHTML=`<tr><td colspan="11" style="text-align:center;color:#AAA;padding:28px;font-size:13px">
+    tbody.innerHTML=`<tr><td colspan="12" style="text-align:center;color:#AAA;padding:28px;font-size:13px">
       Sin datos — haz clic en <b>↻ Cargar desde Sheets</b> o <b>+ Nueva fila</b>
     </td></tr>`;
     return;
   }
 
-  tbody.innerHTML=filtered.map(({esc,maq,oper,turnoOp,modelo,asgn,pct,hora,idx,disabled})=>{
+  tbody.innerHTML=filtered.map(({esc,maq,oper,turnoOp,modelo,brk,asgn,pct,hora,idx,disabled})=>{
     const pctColor=pct===null?'#888':pct<=settings.alerta?'#EA4335':pct<=40?'#FBBC04':'#34A853';
     const pctVal=pct!==null?Math.round(pct):null;
     const est=asgn?(asgn._estado||'en-uso'):'libre';
@@ -2853,12 +2832,10 @@ function renderOpTable(){
     // Sombra flag from operadores list
     const esSombraOp=!!(getVal(operadores[idx]||{},['_sombra'])===true||(asgn&&asgn._estado==='sombra'));
     const sombraStyle=esSombraOp?'font-style:italic;color:#B06000':'';
-    const enBreakRow=!!(asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak));
 
-    return `<tr style="${disabled?'opacity:.45':enBreakRow?'background:#FFF8E1':''}">
+    return `<tr style="${disabled?'opacity:.45':''}">
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
         <span style="display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;background:#E6F4EA;color:#137333">${maq}</span>
-        ${enBreakRow?'<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#FFF3E0;color:#E65100;margin-left:4px">☕ break</span>':''}
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-weight:500">${esc||'—'}</td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;${sombraStyle}">
@@ -2866,6 +2843,11 @@ function renderOpTable(){
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
         <span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:500;background:${tBg};color:${tFg}">${turnoOp}</span>
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
+        ${idx>=0
+          ?`<select class="ainp" style="font-size:11px;height:26px;padding:2px 5px;min-width:78px" onchange="setBreakOp(${idx},this.value)" title="Hora de break — pausa la descarga ${settings.breakDuracion||30} min">${breakOptionsHTML(brk)}</select>`
+          :'<span style="color:#CCC;font-size:11px">—</span>'}
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
         ${modelo?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;background:${modelo.toLowerCase().includes('trossen')?'#E8F0FE':'#F3E8FF'};color:${modelo.toLowerCase().includes('trossen')?'#1A73E8':'#7B1FA2'}">${modelo}</span>`:'<span style="color:#CCC">—</span>'}
@@ -2893,30 +2875,122 @@ function renderOpTable(){
         ${hora?'<span style="color:#1A73E8">~'+hora+'</span>':'<span style="color:#AAA">—</span>'}
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">${dtCell}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
-        ${(()=>{
-          const brkTpls=(settings.breakTemplates||[]);
-          if(!brkTpls.length) return '<span style="color:#AAA;font-size:11px">Sin tipos</span>';
-          if(!asgn||!asgn.upe_id) return '<span style="color:#CCC;font-size:11px">—</span>';
-          const activeBreak=(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
-          if(activeBreak){
-            const tpl=brkTpls.find(t=>t.id===activeBreak.tipo)||{label:activeBreak.tipo};
-            const durMin=Math.round((Date.now()-new Date(activeBreak._tsStart||activeBreak.inicio))/60000);
-            return `<div style="display:flex;flex-direction:column;gap:4px">
-              <span class="break-badge">☕ ${tpl.label} · ${durMin}m</span>
-              <button class="break-btn end" onclick="terminarBreak('${esc}')">✓ Regresar</button>
-            </div>`;
-          }
-          const opts=brkTpls.map(t=>`<option value="${t.id}">${t.label}</option>`).join('');
-          return `<div style="display:flex;gap:4px;align-items:center">
-            <select class="ainp" id="brk-sel-${esc}" style="font-size:11px;padding:3px 5px;height:26px">${opts}</select>
-            <button class="break-btn start" onclick="iniciarBreak('${esc}')">☕</button>
-          </div>`;
-        })()}
-      </td>
       <td style="padding:8px 6px;border-bottom:1px solid #F5F5F5;white-space:nowrap">${editBtns}</td>
     </tr>`;
   }).join('');
+}
+
+// ── Break individual del operador ──
+function breakOptionsHTML(selected){
+  const opts=settings.breakOptions||[];
+  let html='<option value="">— sin break —</option>';
+  // Si el valor guardado no está en la lista, mostrarlo igual para no perderlo
+  if(selected && !opts.includes(selected)) html+=`<option value="${selected}" selected>${selected}</option>`;
+  html+=opts.map(o=>`<option value="${o}" ${selected===o?'selected':''}>${o}</option>`).join('');
+  return html;
+}
+
+function setBreakOp(idx,val){
+  if(idx<0||!operadores[idx])return;
+  operadores[idx].break=val;
+  saveLocal();
+  renderOpTable();
+  if(typeof renderMain==='function')renderMain();
+  if(typeof renderAlertas==='function')renderAlertas();
+  apiPost({action:'guardar_operadores',operadores}).catch(()=>{});
+}
+
+// Rellena los <select> de turno (filtro, modal operador, modal downtime) según settings.turnos
+function refreshTurnoSelects(){
+  const turnos=getTurnosCfg();
+  const optsHTML=turnos.map(t=>`<option value="${t.nombre}">${capTurno(t.nombre)}</option>`).join('');
+  const fSel=document.getElementById('op-turno-filter');
+  if(fSel){const cur=fSel.value;fSel.innerHTML='<option value="">Todos los turnos</option>'+optsHTML;fSel.value=turnos.some(t=>t.nombre===cur)?cur:'';}
+  const mSel=document.getElementById('op-m-turno');
+  if(mSel){const cur=mSel.value;mSel.innerHTML=optsHTML;if(turnos.some(t=>t.nombre===cur))mSel.value=cur;}
+  const dSel=document.getElementById('dt-m-turno');
+  if(dSel){const cur=dSel.value;dSel.innerHTML=optsHTML+'<option value="todos">Todos</option>';if([...turnos.map(t=>t.nombre),'todos'].includes(cur))dSel.value=cur;}
+}
+
+// ── Ajustes: horarios de turno ──
+function persistTurnosBreaks(){ if(typeof publicarSettings==='function') publicarSettings().catch(()=>{}); }
+
+function renderTurnos(){
+  const el=document.getElementById('turnos-list'); if(!el)return;
+  ensureShiftDefaults();
+  const turnos=settings.turnos||[];
+  if(!turnos.length){el.innerHTML='<div style="color:#AAA;font-size:11px;padding:6px">Sin turnos definidos</div>';return;}
+  el.innerHTML=turnos.map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;background:#F5F5F7;border-radius:6px;padding:6px 10px;flex-wrap:wrap">
+      <input class="ainp" style="flex:1;min-width:90px" value="${t.nombre||''}" onchange="updTurno(${i},'nombre',this.value)" title="Nombre del turno"/>
+      <span style="font-size:11px;color:#888">de</span>
+      <input class="ainp" type="time" style="width:118px" value="${t.ini||''}" onchange="updTurno(${i},'ini',this.value)"/>
+      <span style="font-size:11px;color:#888">a</span>
+      <input class="ainp" type="time" style="width:118px" value="${t.fin||''}" onchange="updTurno(${i},'fin',this.value)"/>
+      <button class="bsm bdanger" onclick="removeTurno(${i})">✕</button>
+    </div>`).join('');
+}
+function updTurno(i,campo,val){
+  if(!settings.turnos||!settings.turnos[i])return;
+  if(campo==='nombre') val=val.trim().toLowerCase();
+  settings.turnos[i][campo]=val;
+  saveLocal();persistTurnosBreaks();refreshTurnoSelects();
+  if(typeof updateClock==='function')updateClock();
+}
+function addTurno(){
+  const nEl=document.getElementById('inp-turno-nombre');
+  const iEl=document.getElementById('inp-turno-ini');
+  const fEl=document.getElementById('inp-turno-fin');
+  const nombre=(nEl.value||'').trim().toLowerCase();
+  const ini=iEl.value, fin=fEl.value;
+  if(!nombre||!ini||!fin){alert('Completa nombre, inicio y fin del turno');return;}
+  if(!settings.turnos)settings.turnos=[];
+  if(settings.turnos.some(t=>t.nombre===nombre)){alert('Ya existe un turno llamado "'+nombre+'"');return;}
+  settings.turnos.push({nombre,ini,fin});
+  nEl.value='';
+  saveLocal();persistTurnosBreaks();renderTurnos();refreshTurnoSelects();
+  if(typeof updateClock==='function')updateClock();
+  addLog('Turno "'+nombre+'" agregado ('+ini+'–'+fin+')');
+}
+function removeTurno(i){
+  const t=(settings.turnos||[])[i]; if(!t)return;
+  if(!confirm('¿Eliminar el turno "'+t.nombre+'"?'))return;
+  settings.turnos.splice(i,1);
+  saveLocal();persistTurnosBreaks();renderTurnos();refreshTurnoSelects();
+  if(typeof updateClock==='function')updateClock();
+}
+
+// ── Ajustes: opciones de break ──
+function renderBreakOptions(){
+  const el=document.getElementById('break-options-list'); if(!el)return;
+  ensureShiftDefaults();
+  const opts=settings.breakOptions||[];
+  if(!opts.length){el.innerHTML='<div style="color:#AAA;font-size:11px;padding:6px">Sin horas agregadas</div>';return;}
+  el.innerHTML=opts.map((o,i)=>`
+    <div style="display:flex;align-items:center;gap:6px;background:#F5F5F7;border-radius:6px;padding:4px 8px">
+      <span style="font-weight:500;font-size:12px">${o}</span>
+      <button class="bsm bdanger" onclick="removeBreakOption(${i})">✕</button>
+    </div>`).join('');
+}
+function addBreakOption(){
+  const inp=document.getElementById('inp-nuevo-break'); const v=inp.value;
+  if(!v){alert('Elige una hora');return;}
+  if(!settings.breakOptions)settings.breakOptions=[];
+  if(settings.breakOptions.includes(v)){alert('Esa hora ya está en la lista');return;}
+  settings.breakOptions.push(v);
+  settings.breakOptions.sort();
+  inp.value='';
+  saveLocal();persistTurnosBreaks();renderBreakOptions();renderOpTable();
+}
+function removeBreakOption(i){
+  (settings.breakOptions||[]).splice(i,1);
+  saveLocal();persistTurnosBreaks();renderBreakOptions();renderOpTable();
+}
+function updBreakDur(v){
+  settings.breakDuracion=parseInt(v)||30;
+  saveLocal();persistTurnosBreaks();renderOpTable();
+  if(typeof renderMain==='function')renderMain();
+  if(typeof renderAlertas==='function')renderAlertas();
 }
 
 function abrirModalOp(idx, event){
@@ -2931,15 +3005,23 @@ function abrirModalOp(idx, event){
     document.getElementById('op-m-maquina').value='';
     document.getElementById('op-m-escenario').value='';
     document.getElementById('op-m-operador').value='';
-    document.getElementById('op-m-turno').value='tarde';
+    refreshTurnoSelects();
+    const tSel=document.getElementById('op-m-turno');
+    if(tSel) tSel.value=getTurnosCfg()[0]?getTurnosCfg()[0].nombre:'';
+    const bSel=document.getElementById('op-m-break');
+    if(bSel) bSel.innerHTML=breakOptionsHTML('');
   } else {
     if(title)title.textContent='Editar fila';
     const op=operadores[idx];if(!op)return;
     document.getElementById('op-m-maquina').value=getVal(op,['maquina','Maquina']);
     document.getElementById('op-m-escenario').value=normEsc(getVal(op,['escenario','Escenario']));
     document.getElementById('op-m-operador').value=getVal(op,['operador','Operador']);
+    refreshTurnoSelects();
     const turnoVal=getVal(op,['turno','Turno']);
-    document.getElementById('op-m-turno').value=['mañana','tarde','noche'].includes(turnoVal)?turnoVal:'tarde';
+    const tSel=document.getElementById('op-m-turno');
+    if(tSel) tSel.value=getTurnosCfg().some(t=>t.nombre===turnoVal)?turnoVal:(getTurnosCfg()[0]?getTurnosCfg()[0].nombre:'');
+    const bSel=document.getElementById('op-m-break');
+    if(bSel) bSel.innerHTML=breakOptionsHTML(getVal(op,['break','Break'])||'');
   }
   modal.style.display='flex';
   // Evitar que el evento que abrió el modal lo cierre inmediatamente
@@ -2960,19 +3042,20 @@ async function guardarFilaOp(){
     const esc=normEsc(document.getElementById('op-m-escenario').value.trim());
     const oper=document.getElementById('op-m-operador').value.trim();
     const turno=document.getElementById('op-m-turno').value;
+    const brk=(document.getElementById('op-m-break')||{}).value||'';
 
     if(!esc){
       if(msg){msg.textContent='El escenario es obligatorio';msg.className='smsg merr';}
       return;
     }
 
-    const fila={maquina:maq, escenario:esc, operador:oper, turno:turno};
+    const fila={maquina:maq, escenario:esc, operador:oper, turno:turno, break:brk};
 
     if(opEditIdx===null){
       if(!operadores) operadores=[];
       operadores.push(fila);
     } else {
-      operadores[opEditIdx]=fila;
+      operadores[opEditIdx]={...(operadores[opEditIdx]||{}), ...fila};
     }
 
     saveLocal();
@@ -2992,59 +3075,6 @@ async function guardarFilaOp(){
     console.error('guardarFilaOp error:',e);
     if(msg){msg.textContent='Error: '+e.message;msg.className='smsg merr';}
   }
-}
-
-function iniciarBreak(estacion){
-  const sel=document.getElementById('brk-sel-'+estacion);
-  if(!sel||!sel.value) return;
-  const tipo=sel.value;
-  const tpl=(settings.breakTemplates||[]).find(t=>t.id===tipo);
-  if(!tpl) return;
-  if(!assignments[estacion]||!assignments[estacion].upe_id){
-    alert('No hay batería asignada en '+estacion+'. El break solo pausa la batería cuando hay una asignada.'); return;
-  }
-  if(!assignments[estacion]._downtimes) assignments[estacion]._downtimes=[];
-  // No permitir 2 pausas activas (break o downtime)
-  if(assignments[estacion]._downtimes.find(d=>!d.fin)){
-    alert('Ya hay un paro activo en '+estacion+'. Termínalo primero.'); return;
-  }
-  const now=tsISO();
-  assignments[estacion]._downtimes.push({tipo, inicio:now, fin:null, _tsStart:Date.now(), _esBreak:true});
-  saveLocal();
-  addLog(estacion+': break iniciado — '+tpl.label);
-  apiPost({action:'asignar_forzado',
-    estacion, upe_id:assignments[estacion].upe_id,
-    timestamp:assignments[estacion].timestamp,
-    turno:assignments[estacion].turno||getTurnoActual(),
-    pct_inicio:assignments[estacion].pct_inicio||100,
-    pct_fin:assignments[estacion].pct_fin||settings.pctFin,
-    locomotion:assignments[estacion].locomotion||false,
-    etiqueta:assignments[estacion].etiqueta||'',
-    _downtimes:assignments[estacion]._downtimes||[]
-  }).catch(()=>{});
-  renderOpTable();renderMain();renderAlertas();
-}
-
-function terminarBreak(estacion){
-  if(!assignments[estacion]||!assignments[estacion]._downtimes) return;
-  const dt=assignments[estacion]._downtimes.find(d=>!d.fin&&d._esBreak);
-  if(!dt) return;
-  dt.fin=tsISO();
-  const durMin=Math.round((parseTS(dt.fin)-parseTS(dt.inicio))/60000);
-  const tpl=(settings.breakTemplates||[]).find(t=>t.id===dt.tipo)||{label:dt.tipo};
-  saveLocal();
-  addLog(estacion+': break terminado — '+tpl.label+' ('+durMin+' min)');
-  apiPost({action:'asignar_forzado',
-    estacion, upe_id:assignments[estacion].upe_id,
-    timestamp:assignments[estacion].timestamp,
-    turno:assignments[estacion].turno||getTurnoActual(),
-    pct_inicio:assignments[estacion].pct_inicio||100,
-    pct_fin:assignments[estacion].pct_fin||settings.pctFin,
-    locomotion:assignments[estacion].locomotion||false,
-    etiqueta:assignments[estacion].etiqueta||'',
-    _downtimes:assignments[estacion]._downtimes||[]
-  }).catch(()=>{});
-  renderOpTable();renderMain();renderAlertas();
 }
 
 async function eliminarFilaOp(idx){
@@ -3125,7 +3155,7 @@ function sw(name,btn){
   if(name==='tabla')renderTable();
   if(name==='almacen')renderInv();
   if(name==='editar'){applyBg();renderEdit();setupEdit();actualizarSelectMaquinas();}
-  if(name==='ajustes'){renderPromedios();loadSettingsUI();renderMaquinas();renderDTTemplates();renderRotChips();renderBreakTemplates();}
+  if(name==='ajustes'){renderPromedios();loadSettingsUI();renderMaquinas();renderDTTemplates();renderRotChips();}
   if(name==='croquis'){renderMain();renderAlertas();}
   if(name==='operacion'){renderOpTable();renderCambios();}
 }
@@ -3158,7 +3188,6 @@ renderRotChips();
 if(typeof renderEtiquetas==='function')renderEtiquetas();
 if(typeof syncSelectEtiquetas==='function')syncSelectEtiquetas();
 if(typeof onLocoChange==='function')onLocoChange();
-renderBreakTemplates();
 if(bgUrl){
   const uzl=document.getElementById('uzlbl');if(uzl)uzl.style.display='none';
   const ii=document.getElementById('iinfo');if(ii)ii.style.display='flex';
