@@ -695,7 +695,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <div>
             <label class="flabel">Hora de inicio</label>
-            <input class="inp" id="brk-m-hora" type="time" style="margin-bottom:0"/>
+            <div style="display:flex;gap:4px;align-items:center">
+              <select class="inp" id="brk-m-hora-h" style="margin-bottom:0;flex:1">
+                ${Array.from({length:24},(_,i)=>`<option value="${String(i).padStart(2,'0')}">${String(i).padStart(2,'0')}</option>`).join('')}
+              </select>
+              <span style="font-weight:600;color:#888">:</span>
+              <select class="inp" id="brk-m-hora-m" style="margin-bottom:0;flex:1">
+                <option value="00">00</option>
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="45">45</option>
+              </select>
+            </div>
           </div>
           <div>
             <label class="flabel">Duración (min)</label>
@@ -877,12 +888,10 @@ const TURNOS = [
 
 function getTurnoActual(){
   const now=new Date();
-  const d=now.getDay();
-  if(d===0||d===6) return 'finde';
   const m=now.getHours()*60+now.getMinutes();
-  if(m>=7*60 && m<16*60+36) return 'mañana';
-  if(m>=16*60+36 && m<22*60) return 'tarde';
-  return 'noche';
+  if(m>=6*60+30 && m<15*60) return 'mañana';   // 06:30 – 15:00
+  if(m>=15*60   && m<22*60+30) return 'tarde';  // 15:00 – 22:30
+  return 'noche';                                // 22:30 – 06:30
 }
 
 function turnoColor(t){
@@ -2029,12 +2038,14 @@ function abrirModalBreak(id){
     if(!t)return;
     document.getElementById('brk-m-label').value=t.label||'';
     document.getElementById('brk-m-turno').value=t.turno||'tarde';
-    document.getElementById('brk-m-hora').value=sanitizeHora(t.horaInicio)||'';
+    document.getElementById('brk-m-hora-h').value=sanitizeHora(t.horaInicio).split(':')[0]||'06';
+    document.getElementById('brk-m-hora-m').value=sanitizeHora(t.horaInicio).split(':')[1]||'00';
     document.getElementById('brk-m-dur').value=t.duracion||30;
   } else {
     document.getElementById('brk-m-label').value='';
     document.getElementById('brk-m-turno').value='tarde';
-    document.getElementById('brk-m-hora').value='';
+    document.getElementById('brk-m-hora-h').value='06';
+    document.getElementById('brk-m-hora-m').value='00';
     document.getElementById('brk-m-dur').value=30;
   }
   modal.style.display='flex';
@@ -2043,11 +2054,11 @@ function abrirModalBreak(id){
 function guardarBreakTpl(){
   const label=document.getElementById('brk-m-label').value.trim();
   const turno=document.getElementById('brk-m-turno').value;
-  const horaInicio=sanitizeHora(document.getElementById('brk-m-hora').value);
+  const horaH=document.getElementById('brk-m-hora-h').value||'00';
+  const horaM=document.getElementById('brk-m-hora-m').value||'00';
+  const horaInicio=horaH+':'+horaM;
   const duracion=parseInt(document.getElementById('brk-m-dur').value)||30;
   if(!label){alert('Escribe un nombre para el break');return;}
-  if(!horaInicio){alert('Selecciona la hora de inicio');return;}
-  if(!settings.breakTemplates) settings.breakTemplates=[];
   if(brkEditId){
     const idx=settings.breakTemplates.findIndex(t=>t.id===brkEditId);
     if(idx>=0) settings.breakTemplates[idx]={...settings.breakTemplates[idx],label,turno,horaInicio,duracion};
