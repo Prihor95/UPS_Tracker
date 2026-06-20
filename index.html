@@ -452,10 +452,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <!-- ══ ESTADO ══ -->
 <div class="view" id="view-tabla">
   <div class="card">
-    <table class="tbl">
-      <thead><tr><th>Estación</th><th>Estado</th><th>Batería</th><th>Turno</th><th>% est.</th><th>Cambio est.</th><th></th></tr></thead>
-      <tbody id="tbody"></tbody>
-    </table>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="ctitle" style="margin-bottom:0">Estado de estaciones</div>
+      <button class="abtn" id="btn-reporte" onclick="copiarTablaImagen()" style="display:flex;align-items:center;gap:6px">
+        📋 Copiar reporte
+      </button>
+    </div>
+    <div id="tabla-reporte-wrap">
+      <table class="tbl" id="tabla-estado">
+        <thead><tr><th>Estación</th><th>Batería</th><th>% est.</th><th>Cambio est.</th><th></th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -2362,14 +2370,11 @@ function renderTable(){
     const pct=u?estimarPorcentaje(id):null;
     const hora=u?estimarHoraCambio(id):null;
     const pctColor=pct===null?'#888':pct<=settings.alerta?'#EA4335':pct<=40?'#FBBC04':'#34A853';
-    const turno=asgn&&asgn.turno?asgn.turno:'—';
     const tr=document.createElement('tr');
     tr.innerHTML=`<td style="font-weight:500">${id}</td>
-      <td><span class="bdg ${u?'bu':'bf'}">${u?'Con UPE':'Libre'}</span></td>
-      <td>${u||'—'}</td>
-      <td><span class="turno-pill ${turnoColor(turno)}">${turno}</span></td>
-      <td style="color:${pctColor};font-weight:500">${pct!==null?Math.round(pct)+'%':'—'}</td>
-      <td style="font-size:12px">${hora?'~'+hora:'—'}</td>
+      <td>${u||'<span style="color:#AAA">—</span>'}</td>
+      <td style="color:${pctColor};font-weight:600">${pct!==null?Math.round(pct)+'%':'—'}</td>
+      <td style="font-size:12px">${hora?'<span style="color:#1A73E8">~'+hora+'</span>':'—'}</td>
       <td><button class="bsm ${u?'bdanger':''}" onclick="${u?`clrById('${id}')`:`selGo('${id}')`}">${u?'Liberar':'Asignar'}</button></td>`;
     tb.appendChild(tr);
   });
@@ -2386,6 +2391,91 @@ async function clrById(id){
 }
 
 function selGo(id){selSt=id;document.getElementById('inp-st').value=id;sw('croquis',document.getElementById('tab-croquis'));}
+
+// ══ REPORTE: copiar tabla como imagen al portapapeles ══
+function copiarTablaImagen(){
+  const btn=document.getElementById('btn-reporte');
+  if(btn){btn.textContent='⏳ Generando...';btn.disabled=true;}
+
+  // Carga html2canvas si no está disponible aún
+  function doCapture(){
+    const wrap=document.getElementById('tabla-reporte-wrap');
+    if(!wrap) return;
+
+    // Encabezado temporal del reporte
+    const now=new Date();
+    const fechaStr=now.toLocaleDateString('es-MX',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    const horaStr=now.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+
+    const header=document.createElement('div');
+    header.style.cssText='padding:10px 14px 6px;font-family:sans-serif;border-bottom:2px solid #1A73E8;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-end';
+    header.innerHTML=`
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#1A73E8">Reporte de Estado de Baterías</div>
+        <div style="font-size:11px;color:#666;margin-top:2px">${fechaStr}</div>
+      </div>
+      <div style="font-size:12px;color:#888;text-align:right">Hora: <b>${horaStr}</b></div>`;
+    wrap.insertBefore(header,wrap.firstChild);
+
+    // Ocultar botones de acción dentro del wrap para captura limpia
+    const btns=wrap.querySelectorAll('button');
+    btns.forEach(b=>b.style.visibility='hidden');
+
+    html2canvas(wrap,{
+      backgroundColor:'#ffffff',
+      scale:2,
+      useCORS:true,
+      logging:false
+    }).then(canvas=>{
+      // Limpiar header temporal
+      wrap.removeChild(header);
+      btns.forEach(b=>b.style.visibility='');
+      if(btn){btn.textContent='📋 Copiar reporte';btn.disabled=false;}
+
+      canvas.toBlob(blob=>{
+        if(!blob) return;
+        try{
+          navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(()=>{
+            if(btn){
+              btn.textContent='✓ ¡Copiado!';
+              btn.style.background='#34A853';btn.style.color='#fff';
+              setTimeout(()=>{btn.textContent='📋 Copiar reporte';btn.style.background='';btn.style.color='';},2500);
+            }
+          }).catch(()=>fallbackDescarga(canvas,btn));
+        }catch(e){fallbackDescarga(canvas,btn);}
+      },'image/png');
+    }).catch(()=>{
+      wrap.removeChild(header);
+      btns.forEach(b=>b.style.visibility='');
+      if(btn){btn.textContent='📋 Copiar reporte';btn.disabled=false;}
+      alert('No se pudo generar la imagen.');
+    });
+  }
+
+  if(typeof html2canvas==='undefined'){
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload=doCapture;
+    s.onerror=()=>{if(btn){btn.textContent='📋 Copiar reporte';btn.disabled=false;}alert('No se pudo cargar la librería de captura.');};
+    document.head.appendChild(s);
+  } else {
+    doCapture();
+  }
+}
+
+function fallbackDescarga(canvas, btn){
+  // Si el portapapeles no está disponible, ofrece descarga directa
+  const a=document.createElement('a');
+  const now=new Date();
+  const ts=now.toISOString().slice(0,16).replace('T','_').replace(':','-');
+  a.download='reporte_baterias_'+ts+'.png';
+  a.href=canvas.toDataURL('image/png');
+  a.click();
+  if(btn){
+    btn.textContent='⬇ Descargado';
+    setTimeout(()=>{btn.textContent='📋 Copiar reporte';},2500);
+  }
+}
 
 // ══ ALMACÉN ══
 async function addBat(t){
