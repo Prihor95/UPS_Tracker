@@ -330,14 +330,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600"># Máquina</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Escenario</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Operador</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Turno</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Modelo</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Estado bat.</th>
+          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Break</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">% Bat.</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Bat. ID</th>
           <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Cambio est.</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Downtime</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Break</th>
           <th style="padding:10px 6px;width:60px"></th>
         </tr>
       </thead>
@@ -2881,7 +2877,7 @@ function renderOpTable(){
     .filter(r=>!turnoFiltro || (r.turnoOp||'').toLowerCase()===turnoFiltro);
 
   if(!filtered.length){
-    tbody.innerHTML=`<tr><td colspan="11" style="text-align:center;color:#AAA;padding:28px;font-size:13px">
+    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;color:#AAA;padding:28px;font-size:13px">
       Sin datos — haz clic en <b>↻ Cargar desde Sheets</b> o <b>+ Nueva fila</b>
     </td></tr>`;
     return;
@@ -2939,45 +2935,15 @@ function renderOpTable(){
     return `<tr style="${disabled?'opacity:.45':enBreakRow?'background:#FFF8E1':''}">
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
         <span style="display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;background:#E6F4EA;color:#137333">${maq}</span>
-        ${enBreakRow?'<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#FFF3E0;color:#E65100;margin-left:4px">☕ break</span>':''}
+        ${enBreakRow?'<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#FFF3E0;color:#E65100;margin-left:4px">☕</span>':''}
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-weight:500">${esc||'—'}</td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;${sombraStyle}">
         ${esSombraOp?'<span style="font-size:10px;background:#FEF3E2;color:#B06000;padding:1px 5px;border-radius:4px;margin-right:4px">sombra</span>':''}${oper}
       </td>
       <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
-        <span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:500;background:${tBg};color:${tFg}">${turnoOp}</span>
-      </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
-        ${modelo?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;background:${modelo.toLowerCase().includes('trossen')?'#E8F0FE':'#F3E8FF'};color:${modelo.toLowerCase().includes('trossen')?'#1A73E8':'#7B1FA2'}">${modelo}</span>`:'<span style="color:#CCC">—</span>'}
-      </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
-        ${asgn&&asgn.upe_id
-          ?`<select class="op-sel est-${est}"
-              onchange="setEstadoBat('${esc}',this.value);this.className='op-sel est-'+this.value">
-              ${estSel}
-            </select>`
-          :'<span style="color:#AAA;font-size:12px">Libre</span>'}
-      </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
-        ${pctVal!==null
-          ?`<div style="color:${pctColor};font-weight:700;font-size:13px">${pctVal}%</div>
-            <div style="height:4px;background:#E0E0E0;border-radius:2px;margin-top:3px;width:60px">
-              <div style="height:100%;border-radius:2px;background:${pctColor};width:${pctVal}%"></div>
-            </div>`
-          :'<span style="color:#AAA">—</span>'}
-      </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-size:12px;color:#444">
-        ${asgn&&asgn.upe_id?asgn.upe_id:'<span style="color:#AAA">—</span>'}
-      </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-size:12px">
-        ${hora?'<span style="color:#1A73E8">~'+hora+'</span>':'<span style="color:#AAA">—</span>'}
-      </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">${dtCell}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
         ${(()=>{
           const allBrk=(settings.breakTemplates||[]);
-          // Filtrar breaks del turno del operador (o "todos")
           const brkTpls=allBrk.filter(b=>b.turno===turnoOp||b.turno==='todos');
           if(!allBrk.length) return '<span style="color:#AAA;font-size:11px">—</span>';
           const activeBreak=(asgn&&asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
@@ -3003,7 +2969,7 @@ function renderOpTable(){
               </select>
             </div>`;
           }
-          if(!brkTpls.length) return '<span style="color:#CCC;font-size:11px">Sin breaks para este turno</span>';
+          if(!brkTpls.length) return '<span style="color:#CCC;font-size:11px">—</span>';
           const opts=brkTpls.map(t=>`<option value="${t.id}">${t.label} · ${sanitizeHora(t.horaInicio)||'—'} (${t.duracion||30}m)</option>`).join('');
           return `<select class="ainp" style="font-size:11px;padding:3px 5px;height:28px;min-width:130px"
             onchange="if(this.value){iniciarBreak('${esc}',this.value);this.value=''}">
@@ -3011,6 +2977,24 @@ function renderOpTable(){
             ${opts}
           </select>`;
         })()}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
+        ${asgn&&asgn.upe_id
+          ? `<div style="display:flex;align-items:center;gap:5px">
+               <input type="number" min="0" max="100"
+                 value="${pctVal!==null?pctVal:''}"
+                 style="width:54px;padding:3px 5px;border:1px solid ${pctColor};border-radius:5px;font-size:13px;font-weight:700;color:${pctColor};text-align:center;background:#fff"
+                 onchange="setPctManual('${esc}',this.value)"
+                 title="Editar % de batería"/>
+               <span style="font-size:11px;font-weight:600;color:${pctColor}">%</span>
+             </div>`
+          : '<span style="color:#AAA">—</span>'}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-size:12px;color:#444">
+        ${asgn&&asgn.upe_id?asgn.upe_id:'<span style="color:#AAA">—</span>'}
+      </td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-size:12px">
+        ${hora?'<span style="color:#1A73E8">~'+hora+'</span>':'<span style="color:#AAA">—</span>'}
       </td>
       <td style="padding:8px 6px;border-bottom:1px solid #F5F5F5;white-space:nowrap">${editBtns}</td>
     </tr>`;
@@ -3161,6 +3145,32 @@ function terminarBreak(estacion){
       _downtimes:assignments[estacion]._downtimes||[]
     }).catch(()=>{});
   }
+  renderOpTable();renderMain();renderAlertas();
+}
+
+function setPctManual(estacion, valor){
+  const pct=Math.max(0,Math.min(100,parseInt(valor)));
+  if(isNaN(pct)) return;
+  if(!assignments[estacion]||!assignments[estacion].upe_id) return;
+  // Re-anclar: timestamp = ahora, pct_inicio = valor ingresado
+  assignments[estacion].timestamp=tsISO();
+  assignments[estacion].pct_inicio=pct;
+  // Limpiar downtimes anteriores para que el cálculo parta limpio desde ahora
+  if(assignments[estacion]._downtimes){
+    assignments[estacion]._downtimes=assignments[estacion]._downtimes.filter(d=>d.fin); // conservar solo los cerrados
+  }
+  saveLocal();
+  addLog(estacion+': % bat ajustado manualmente a '+pct+'%');
+  apiPost({action:'asignar_forzado',
+    estacion, upe_id:assignments[estacion].upe_id,
+    timestamp:assignments[estacion].timestamp,
+    turno:assignments[estacion].turno||getTurnoActual(),
+    pct_inicio:pct,
+    pct_fin:assignments[estacion].pct_fin||settings.pctFin,
+    locomotion:assignments[estacion].locomotion||false,
+    etiqueta:assignments[estacion].etiqueta||'',
+    _downtimes:assignments[estacion]._downtimes||[]
+  }).catch(()=>{});
   renderOpTable();renderMain();renderAlertas();
 }
 
