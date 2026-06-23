@@ -1347,16 +1347,9 @@ function setSS(state,msg){
   const dot = document.getElementById('sdot');
   const lbl = document.getElementById('slbl');
   const btn = document.getElementById('bsyncbtn');
-  
-  dot.className = 'sdot ' + state;
-  lbl.textContent = msg;
-  
-  // Solo deshabilitar el botón si está en busy, pero siempre habilitar después de ok/err
-  if (state === 'busy') {
-    btn.disabled = true;
-  } else {
-    btn.disabled = false;
-  }
+  if(dot) dot.className = 'sdot ' + state;
+  if(lbl) lbl.textContent = msg;
+  if(btn) btn.disabled = (state === 'busy');
 }
 
 async function syncFromSheets(silent=false){
@@ -3698,49 +3691,7 @@ window.addEventListener('click',e=>{
   }
 });
 
-// ══ INIT ══
-loadLocal();
-applyBg();
-renderAll();
-setupEdit();
-loadSettingsUI();
-renderDTTemplates();
-renderRotChips();
-if(typeof renderEtiquetas==='function')renderEtiquetas();
-if(typeof syncSelectEtiquetas==='function')syncSelectEtiquetas();
-if(typeof onLocoChange==='function')onLocoChange();
-renderBreakTemplates();
-renderFestivos();
-
-// Limpiar "Inicializando..." inmediatamente con datos locales
-// La sincronización con Sheets ocurre después sin bloquear
-setSS('ok','Datos locales cargados');
-
-syncListaOperadores(); // no-blocking, falla silenciosamente
-if(bgUrl){
-  const uzl=document.getElementById('uzlbl');if(uzl)uzl.style.display='none';
-  const ii=document.getElementById('iinfo');if(ii)ii.style.display='flex';
-  const in2=document.getElementById('iname');if(in2)in2.textContent='📄 Plano guardado';
-}
-const pfi=document.getElementById('inp-pct-fin');if(pfi)pfi.value=settings.pctFin;
-const pii=document.getElementById('inp-pct-ini');if(pii)pii.value=settings.pctIni;
-updateClock();
-setInterval(updateClock,1000);
-
-// ── AUTO-SYNC cada 30 segundos ──
-// Re-renderiza estimados cada minuto (sin llamar al servidor)
-setInterval(()=>{
-  renderMain();renderAlertas();renderTable();renderOpTable();
-},60000);
-
-// Re-renderiza la tabla de operación cada 30s para actualizar contadores de break y auditorías
-setInterval(()=>{
-  const hayActivo=Object.values(assignments).some(a=>a&&(a._downtimes||[]).some(d=>!d.fin&&d._esBreak));
-  const hayAudRunning=Object.values(opRowData).some(r=>(r.aud1&&r.aud1.running)||(r.aud2&&r.aud2.running));
-  if(hayActivo||hayAudRunning) renderOpTable();
-},10000);
-
-// Sincroniza con Sheets cada 30 segundos
+// ── AUTO-SYNC ──
 let autoSyncInterval=null;
 function iniciarAutoSync(segundos=30){
   if(autoSyncInterval) clearInterval(autoSyncInterval);
@@ -3757,11 +3708,46 @@ function iniciarAutoSync(segundos=30){
   }, segundos*1000);
 }
 
-iniciarAutoSync(30); // cada 30 segundos
-
-// Sync inicial en segundo plano
-setTimeout(()=>syncFromSheets(true),500);
-setTimeout(()=>syncOperadores(),3000);
+// ══ INIT ══
+document.addEventListener('DOMContentLoaded', function(){
+  try{
+    loadLocal();
+    applyBg();
+    renderAll();
+    setupEdit();
+    loadSettingsUI();
+    renderDTTemplates();
+    renderRotChips();
+    if(typeof renderEtiquetas==='function')renderEtiquetas();
+    if(typeof syncSelectEtiquetas==='function')syncSelectEtiquetas();
+    if(typeof onLocoChange==='function')onLocoChange();
+    renderBreakTemplates();
+    renderFestivos();
+    setSS('ok','Datos locales cargados');
+    syncListaOperadores();
+    if(bgUrl){
+      const uzl=document.getElementById('uzlbl');if(uzl)uzl.style.display='none';
+      const ii=document.getElementById('iinfo');if(ii)ii.style.display='flex';
+      const in2=document.getElementById('iname');if(in2)in2.textContent='📄 Plano guardado';
+    }
+    const pfi=document.getElementById('inp-pct-fin');if(pfi)pfi.value=settings.pctFin;
+    const pii=document.getElementById('inp-pct-ini');if(pii)pii.value=settings.pctIni;
+    updateClock();
+    setInterval(updateClock,1000);
+    setInterval(()=>{renderMain();renderAlertas();renderTable();renderOpTable();},60000);
+    setInterval(()=>{
+      const hayActivo=Object.values(assignments).some(a=>a&&(a._downtimes||[]).some(d=>!d.fin&&d._esBreak));
+      const hayAudRunning=Object.values(opRowData).some(r=>(r.aud1&&r.aud1.running)||(r.aud2&&r.aud2.running));
+      if(hayActivo||hayAudRunning) renderOpTable();
+    },10000);
+    iniciarAutoSync(30);
+    setTimeout(()=>syncFromSheets(true),500);
+    setTimeout(()=>syncOperadores(),3000);
+  }catch(err){
+    console.error('Init error:',err);
+    setSS('err','Error al iniciar: '+err.message);
+  }
+});
 </script>
 </body>
 </html>
