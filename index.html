@@ -3267,20 +3267,27 @@ function renderOpTable(){
     const rd=getRowData(esc);
     const esSombra=!!(getVal(operadores[idx]||{},['_sombra'])===true);
 
-    // Operador select — siempre visible, siempre con el valor actual seleccionado
-    let listaFuente=listaOps.filter(o=>!turnoOp||turnoOp==='—'||(o.turno||'').toLowerCase()===turnoOp.toLowerCase());
-    if(!listaFuente.length){
-      const nombresEnTabla=[...new Set((operadores||[])
-        .map(o=>(getVal(o,['operador','Operador'])||'').trim()).filter(Boolean))];
-      listaFuente=nombresEnTabla.map(n=>({nombre:n}));
-    }
-    // Asegurar que el operador actual esté en la lista aunque no venga de Sheets
+    // Operador select — muestra TODOS los operadores de la lista maestra
+    // Si hay filtro de turno Y la lista tiene turnos, filtra; si no, muestra todos
+    const listaAll=listaOps.length?listaOps
+      :(operadores||[]).map(o=>({nombre:(getVal(o,['operador','Operador'])||'').trim(),turno:''}))
+        .filter(o=>o.nombre&&o.nombre!=='—');
+    // Filtrar por turno solo si la lista tiene datos de turno Y el operador tiene turno
+    const listaFuente=listaAll.filter(o=>{
+      if(!turnoOp||turnoOp==='—') return true;
+      if(!(o.turno||'').trim()) return true; // sin turno → mostrar siempre
+      return o.turno.toLowerCase()===turnoOp.toLowerCase();
+    });
+    // Deduplicar por nombre
+    const seen=new Set();
+    const listaUniq=listaFuente.filter(o=>{if(seen.has(o.nombre))return false;seen.add(o.nombre);return true;});
+    // Asegurar que el operador actual esté aunque no venga de la lista
     const operActual=(oper&&oper!=='—')?oper:'';
-    if(operActual && !listaFuente.find(o=>o.nombre===operActual))
-      listaFuente=[{nombre:operActual},...listaFuente];
-    const opOpts=listaFuente.map(o=>`<option value="${o.nombre}" ${o.nombre===operActual?'selected':''}>${o.nombre}</option>`).join('');
+    if(operActual&&!listaUniq.find(o=>o.nombre===operActual))
+      listaUniq.unshift({nombre:operActual});
+    const opOpts=listaUniq.map(o=>`<option value="${o.nombre}" ${o.nombre===operActual?'selected':''}>${o.nombre}</option>`).join('');
     const opCell=`<select class="ainp" style="font-size:11px;height:26px;max-width:130px" onchange="setOperadorFila(${idx},'${esc}',this.value)">
-      ${!operActual?'<option value="">— Operador —</option>':''}
+      <option value="" ${!operActual?'selected':''}>— Operador —</option>
       ${opOpts}
     </select>`;
 
