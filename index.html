@@ -3133,14 +3133,15 @@ function renderContadores(){
     return (getVal(op,['turno','Turno'])||'').toLowerCase()===turnoFiltro;
   });
 
-  let presentes=0, trossen=0, yam=0, videos=[];
+  let presentes=0, trossenPres=0, trossenTotal=0, yamPres=0, yamTotal=0, videos=[];
   rows.forEach(op=>{
     const esc=normEsc(getVal(op,['escenario','Escenario']));
     const maq=(getVal(op,['maquina','Maquina'])||'').toLowerCase();
     const rd=getRowData(esc);
-    if(rd.presente) presentes++;
-    if(maq.startsWith('ma-')) trossen++;
-    if(maq.startsWith('yam-')) yam++;
+    const pres=rd.presente;
+    if(pres) presentes++;
+    if(maq.startsWith('ma-')){trossenTotal++;if(pres)trossenPres++;}
+    if(maq.startsWith('yam-')){yamTotal++;if(pres)yamPres++;}
     if(rd.primerVideo) videos.push(rd.primerVideo);
   });
 
@@ -3155,9 +3156,9 @@ function renderContadores(){
   </div>`;
 
   el.innerHTML=
-    chip('✅ En estación',presentes,'#137333')+
-    chip('🔵 Trossen',trossen,'#1A73E8')+
-    chip('🟡 Yamaha',yam,'#B06000')+
+    chip('✅ En estación',presentes+'/'+rows.length,'#137333')+
+    chip('🔵 Trossen',trossenPres+'/'+trossenTotal,'#1A73E8')+
+    chip('🟡 Yam',yamPres+'/'+yamTotal,'#B06000')+
     chip('🕐 Prom. arranque',promedioVideo,'#5E35B1');
 }
 
@@ -3230,13 +3231,22 @@ function renderOpTable(){
     const rd=getRowData(esc);
     const esSombra=!!(getVal(operadores[idx]||{},['_sombra'])===true);
 
-    // Operador select
-    const filteredOps=listaOps.filter(o=>!turnoFiltro||(o.turno||'').toLowerCase()===turnoOp.toLowerCase());
-    const opOpts=filteredOps.map(o=>`<option value="${o.nombre}" ${o.nombre===oper?'selected':''}>${o.nombre}</option>`).join('');
-    const opCell=opOpts
-      ? `<select class="ainp" style="font-size:11px;height:26px;max-width:120px" onchange="setOperadorFila(${idx},'${esc}',this.value)">
-           <option value="">— Operador —</option>${opOpts}</select>`
-      : `<span style="${esSombra?'font-style:italic;color:#B06000':''}">${esSombra?'<span style="font-size:10px;background:#FEF3E2;color:#B06000;padding:1px 4px;border-radius:3px;margin-right:3px">sombra</span>':''}${oper}</span>`;
+    // Operador select — siempre muestra select
+    // Fuente: lista de Sheets si existe, si no: nombres únicos ya en la tabla
+    let listaFuente=listaOps.filter(o=>!turnoOp||turnoOp==='—'||(o.turno||'').toLowerCase()===turnoOp.toLowerCase());
+    if(!listaFuente.length){
+      // Fallback: nombres únicos de operadores ya cargados en la tabla (mismo turno)
+      const nombresEnTabla=[...new Set((operadores||[])
+        .filter(o=>(getVal(o,['turno','Turno'])||'').toLowerCase()===turnoOp.toLowerCase())
+        .map(o=>(getVal(o,['operador','Operador'])||'').trim())
+        .filter(Boolean))];
+      listaFuente=nombresEnTabla.map(n=>({nombre:n}));
+    }
+    const opOpts=listaFuente.map(o=>`<option value="${o.nombre}" ${o.nombre===oper?'selected':''}>${o.nombre}</option>`).join('');
+    const opCell=`<select class="ainp" style="font-size:11px;height:26px;max-width:130px" onchange="setOperadorFila(${idx},'${esc}',this.value)">
+      <option value="">— Operador —</option>${opOpts}
+      ${oper&&oper!=='—'&&!listaFuente.find(o=>o.nombre===oper)?`<option value="${oper}" selected>${oper}</option>`:''}
+    </select>`;
 
     // Break cell — solo nombre, timer en background
     const allBrk=(settings.breakTemplates||[]);
