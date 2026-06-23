@@ -365,13 +365,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <!-- Resultado WhatsApp -->
   <div class="card" style="margin-top:16px;display:none" id="wa-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div class="ctitle" style="margin-bottom:0">📱 Texto para WhatsApp</div>
+      <div class="ctitle" style="margin-bottom:0">📱 Rotación generada</div>
       <div style="display:flex;gap:6px">
-        <button class="bsm" onclick="copiarWA()">📋 Copiar</button>
+        <button class="bsm" onclick="copiarWA()">📋 Copiar img</button>
         <button class="bsm bdanger" onclick="document.getElementById('wa-card').style.display='none'">✕</button>
       </div>
     </div>
-    <div class="rot-wa" id="wa-text"></div>
+    <div id="wa-text"></div>
   </div>
 </div>
 
@@ -651,6 +651,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <span>ℹ️</span>
         <span>Al generar rotación, los operadores sobrantes (más operadores que escenarios activos) quedarán como <b>Sombra</b> en el primer escenario disponible.</span>
       </div>
+
+      <!-- Días festivos -->
+      <div style="margin-top:16px;border-top:1px solid #E0E0E0;padding-top:14px">
+        <div style="font-size:12px;font-weight:600;color:#444;margin-bottom:8px">🗓 Días festivos no laborables</div>
+        <div style="font-size:11px;color:#888;margin-bottom:8px">La rotación no se puede generar en estos días. Si hay tiempo extra en festivo, se genera pero no se guarda en bitácora.</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+          <input type="text" id="festivo-inp" class="ainp" placeholder="YYYY-MM-DD" maxlength="10" style="width:130px;font-family:monospace"/>
+          <button class="abtn" onclick="agregarFestivo()">+ Agregar</button>
+        </div>
+        <div id="festivos-list" style="display:flex;flex-wrap:wrap;gap:6px;min-height:26px"></div>
+      </div>
     </div>
 
     <!-- Downtimes -->
@@ -700,9 +711,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <div>
             <label class="flabel">Hora de inicio</label>
             <div style="display:flex;gap:4px;align-items:center">
-              <select class="inp" id="brk-m-hora-h" style="margin-bottom:0;flex:1">
-                ${Array.from({length:24},(_,i)=>`<option value="${String(i).padStart(2,'0')}">${String(i).padStart(2,'0')}</option>`).join('')}
-              </select>
+              <select class="inp" id="brk-m-hora-h" style="margin-bottom:0;flex:1"></select>
               <span style="font-weight:600;color:#888">:</span>
               <select class="inp" id="brk-m-hora-m" style="margin-bottom:0;flex:1">
                 <option value="00">00</option>
@@ -865,6 +874,8 @@ let settings={
   rotacionOrden: 'J57,J53,J51,J10,J11,J55,J39,J36,J50,J18,J14,J48,J46,J34,J33,J15,J22,J23,J25,J26,J28,J40,J42',
   // Escenarios desactivados para rotación (no se asigna nadie, o se marca sombra)
   rotacionDesactivados: [],
+  // Días festivos no laborables (YYYY-MM-DD)
+  diasFestivos: [],
   // Plantillas de downtime configurables
   downtimeTemplates:[
     {id:'comida',     label:'🍽 Comida',        pausa:true,  tipo:'fijo', turno:'mañana', ini:'13:00', fin:'14:00'},
@@ -1610,7 +1621,56 @@ function guardarRotacion(){
   });
 }
 
-// ── Fecha/bitácora ────────────────────────────────────────────────────────────
+// ── Días festivos ─────────────────────────────────────────────────────────────
+function renderFestivos(){
+  const el=document.getElementById('festivos-list');
+  if(!el) return;
+  const fest=settings.diasFestivos||[];
+  if(!fest.length){el.innerHTML='<span style="color:#AAA;font-size:11px">Sin días festivos configurados</span>';return;}
+  el.innerHTML=[...fest].sort().map(f=>`
+    <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#FDE8E8;border:1px solid #F5C6C6;border-radius:99px;font-size:11px;font-family:monospace">
+      ${f}
+      <button onclick="eliminarFestivo('${f}')" style="border:none;background:none;cursor:pointer;color:#C5221F;font-size:12px;padding:0;line-height:1">✕</button>
+    </span>`).join('');
+}
+
+function agregarFestivo(){
+  const inp=document.getElementById('festivo-inp');
+  if(!inp) return;
+  const v=inp.value.trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){alert('Formato incorrecto. Usa YYYY-MM-DD (ej: 2025-05-01)');return;}
+  if(!settings.diasFestivos) settings.diasFestivos=[];
+  if(!settings.diasFestivos.includes(v)) settings.diasFestivos.push(v);
+  inp.value='';
+  saveLocal();publicarSettings();renderFestivos();
+  addLog('Festivo agregado: '+v);
+}
+
+function eliminarFestivo(f){
+  settings.diasFestivos=(settings.diasFestivos||[]).filter(x=>x!==f);
+  saveLocal();publicarSettings();renderFestivos();
+}
+
+function esFestivo(dateStr){ return (settings.diasFestivos||[]).includes(dateStr); }
+
+function esDiaLaboral(dateStr){
+  const d=new Date(dateStr+'T12:00:00');
+  const dow=d.getDay();
+  return dow>=1&&dow<=5&&!esFestivo(dateStr);
+}
+
+// Retrocede al último día laboral (lunes→viernes, saltando festivos)
+function diaLaboralAnterior(dateStr){
+  const d=new Date(dateStr+'T12:00:00');
+  for(let i=0;i<14;i++){
+    d.setDate(d.getDate()-1);
+    const s=d.toISOString().slice(0,10);
+    if(esDiaLaboral(s)) return s;
+  }
+  return null;
+}
+
+
 async function cargarFechasBitacora(){
   try{
     const r=await fetch(settings.api+'?action=fechas_bitacora&t='+Date.now(),{redirect:'follow'});
@@ -1652,196 +1712,244 @@ async function cargarOperadoresPorFecha(fecha){
 // ── Genera la rotación del día ────────────────────────────────────────────────
 async function generarRotacion(){
   const hoy=new Date();
-  const diaSemana=hoy.getDay();
   const hoyStr=hoy.toISOString().slice(0,10);
+  const dow=hoy.getDay(); // 0=dom,1=lun...6=sáb
 
-  // Turno: tomar del selector si está activo, si no calcular automático
+  // Turno del selector (requerido para rotación)
   const turnoSel=((document.getElementById('op-turno-filter')||{}).value||'');
   const turnoAct=turnoSel||getTurnoActual();
 
-  // 1. Cargar operadores del servidor si no hay nada local
-  let opsActuales=operadores||[];
-  if(!opsActuales.length){
-    try{
-      const r=await fetch(settings.api+'?action=operadores&t='+Date.now(),{redirect:'follow'});
-      const d=await r.json();
-      if(d.ok&&d.operadores) opsActuales=d.operadores;
-    }catch(e){}
-  }
-  if(!opsActuales.length){
-    alert('No hay operadores cargados. Usa ↻ Cargar Sheets primero.');return;
+  // Fecha seleccionada en el selector (puede no ser hoy)
+  const fechaSel=((document.getElementById('op-fecha-sel')||{}).value||'actual');
+  const fechaTarget=fechaSel==='actual'?hoyStr:fechaSel;
+  const fechaDate=new Date(fechaTarget+'T12:00:00');
+
+  // ── Detectar modo: normal, fin de semana/festivo (tiempo extra) ──────────
+  const esTiempoExtra=!esDiaLaboral(fechaTarget);
+  const esFestivoDia=esFestivo(fechaTarget);
+
+  if(esFestivoDia){
+    const ok=confirm(`⚠️ ${fechaTarget} es un día festivo configurado.\n\nPuedes generar la rotación para tiempo extra, pero NO se guardará en bitácora ni en Sheets.\n\n¿Continuar?`);
+    if(!ok) return;
+  } else if(dow===0||dow===6){
+    const ok=confirm(`⚠️ ${fechaTarget} es fin de semana.\n\nSe generará la rotación para tiempo extra, pero NO se guardará en bitácora ni en Sheets.\n\n¿Continuar?`);
+    if(!ok) return;
   }
 
-  // 2. Filtrar por turno seleccionado
-  const opsTurno=opsActuales.filter(op=>{
+  // ── Calcular fecha del día laboral anterior ───────────────────────────────
+  const fechaAnt=diaLaboralAnterior(fechaTarget);
+  if(!fechaAnt){
+    alert('No se pudo calcular el día laboral anterior. Verifica la configuración de festivos.');return;
+  }
+
+  // ── Cargar operadores del día anterior desde Sheets ───────────────────────
+  let opsAnt=[];
+  const btnRot=document.querySelector('[onclick="generarRotacion()"]');
+  if(btnRot){btnRot.textContent='⏳ Cargando...';btnRot.disabled=true;}
+  try{
+    const r=await fetch(settings.api+'?action=operadores&fecha='+fechaAnt+'&turno='+turnoAct+'&t='+Date.now(),{redirect:'follow'});
+    const d=await r.json();
+    if(d.ok&&d.operadores&&d.operadores.length){
+      opsAnt=d.operadores;
+    } else {
+      // Fallback: usar los cargados localmente
+      opsAnt=operadores||[];
+      if(!opsAnt.length){
+        if(btnRot){btnRot.textContent='🔄 Generar rotación';btnRot.disabled=false;}
+        alert(`No se encontraron operadores del día anterior (${fechaAnt}).\n\nCarga primero esa fecha en el selector de fecha o verifica Sheets.`);return;
+      }
+      console.warn('Usando operadores locales como fallback para rotación');
+    }
+  }catch(e){
+    opsAnt=operadores||[];
+    if(!opsAnt.length){
+      if(btnRot){btnRot.textContent='🔄 Generar rotación';btnRot.disabled=false;}
+      alert('Error conectando a Sheets: '+e.message);return;
+    }
+  }
+  if(btnRot){btnRot.textContent='🔄 Generar rotación';btnRot.disabled=false;}
+
+  // ── Filtrar por turno ─────────────────────────────────────────────────────
+  const opsTurno=opsAnt.filter(op=>{
     const t=(getVal(op,['turno','Turno'])||'').toLowerCase();
-    return !turnoAct||t===turnoAct.toLowerCase();
+    return t===turnoAct.toLowerCase();
   });
   if(!opsTurno.length){
-    alert('No hay operadores para el turno "'+turnoAct+'". Verifica el filtro o carga los datos del turno correcto.');return;
+    alert(`No hay operadores del turno "${turnoAct}" en la bitácora del ${fechaAnt}.\n\nVerifica que la fecha anterior esté guardada correctamente en Sheets.`);return;
   }
 
   const orden=getRotacionOrden();
-  if(!orden.length){
-    alert('Define el orden de rotación en Ajustes → Rotación.');return;
-  }
+  if(!orden.length){alert('Define el orden de rotación en Ajustes → Rotación.');return;}
   const off=getRotacionDesactivados();
 
-  // 3. Mapa FIJO escenario → {maquina, modelo, break}
-  // La máquina y el modelo son propiedades del escenario, no del operador
+  // ── Mapa de info fija del escenario (máquina) ─────────────────────────────
   const escInfo={};
   opsTurno.forEach(op=>{
     const esc=normEsc(getVal(op,['escenario','Escenario']));
     if(!esc) return;
-    escInfo[esc]={
-      maquina: getVal(op,['maquina','Maquina'])||'—',
-      modelo:  getVal(op,['modelo','Modelo'])||'',
-      break:   getVal(op,['break','Break'])||''
-    };
+    escInfo[esc]={maquina:getVal(op,['maquina','Maquina'])||'—'};
   });
 
-  // 4. Lista de escenarios activos en orden de rotación
-  //    Solo los que aparecen en opsTurno Y en la lista de rotación Y no están desactivados
   const escActivosOrden=orden.filter(e=>!off.has(e)&&escInfo[e]);
   const escOffOrden    =orden.filter(e=> off.has(e)&&escInfo[e]);
 
-  // 5. Lista de operadores con nombre real, en el orden de rotación
-  //    Incluye solo los que tienen escenario en escActivosOrden
+  if(!escActivosOrden.length){
+    alert('Ningún escenario del día anterior coincide con el orden de rotación activo.');return;
+  }
+
+  // ── Mapa escenario→operador del día anterior ──────────────────────────────
   const opMap={};
   opsTurno.forEach(op=>{
     const esc=normEsc(getVal(op,['escenario','Escenario']));
     if(esc) opMap[esc]=op;
   });
 
-  // Operadores disponibles (nombre real, no vacío ni "-")
-  const opsConNombre=escActivosOrden
-    .map(e=>opMap[e])
-    .filter(op=>{
-      if(!op) return false;
-      const nom=(getVal(op,['operador','Operador'])||'').trim();
-      return nom&&nom!=='-'&&nom!=='—';
-    });
-
-  // 6. Rotación circular: operador[i] va al escenario que tenía operador[i-1]
-  //    Es decir: el que estaba en escActivosOrden[0] pasa a escActivosOrden[1], etc.
-  //    Mapeamos: escenario_destino → operador_fuente
-  //    Para eso necesitamos: el orden de escenarios que SÍ tienen operador
-  const escConOp=escActivosOrden.filter(e=>opMap[e]&&(getVal(opMap[e],['operador','Operador'])||'').trim()&&(getVal(opMap[e],['operador','Operador'])||'').trim()!=='-'&&(getVal(opMap[e],['operador','Operador'])||'').trim()!=='—');
-  const nConOp=escConOp.length;
-
-  // rotMap: escenario_destino → escenario_fuente (de donde viene el operador)
-  // El operador de escConOp[i] va a escConOp[(i+1) % nConOp]
-  const rotMap={};
-  escConOp.forEach((esc,i)=>{
-    const escDest=escConOp[(i+1)%nConOp];
-    rotMap[escDest]=esc; // el destino recibe al operador de la fuente
+  const escConOp=escActivosOrden.filter(e=>{
+    const nom=(getVal(opMap[e]||{},['operador','Operador'])||'').trim();
+    return nom&&nom!=='-'&&nom!=='—';
   });
 
-  // 7. Construir resultado
-  const resultado=[];
+  // ── Rotación circular ─────────────────────────────────────────────────────
+  // operador de escConOp[i] pasa a escConOp[(i+1) % n]
+  const rotMap={};
+  escConOp.forEach((esc,i)=>{
+    rotMap[escConOp[(i+1)%escConOp.length]]=esc;
+  });
 
+  // ── Construir resultado ───────────────────────────────────────────────────
+  const resultado=[];
   escActivosOrden.forEach(esc=>{
-    const escFuente=rotMap[esc]; // de dónde viene el operador
+    const escFuente=rotMap[esc];
     const opFuente=escFuente?opMap[escFuente]:null;
     const nombre=opFuente?(getVal(opFuente,['operador','Operador'])||'—'):'—';
-    const info=escInfo[esc]||{maquina:'—',modelo:'',break:''};
     const sinOp=!nombre||nombre==='—'||nombre==='-';
-
     resultado.push({
-      maquina:  info.maquina,  // FIJO del escenario
+      maquina:  escInfo[esc]?.maquina||'—',
       escenario:esc,
       operador: nombre,
       turno:    turnoAct,
-      modelo:   info.modelo,   // FIJO del escenario
-      break:    info.break,
       _sombra:  sinOp
     });
   });
-
-  // 8. Escenarios desactivados (en off pero en escInfo del turno) → sombra
   escOffOrden.forEach(esc=>{
-    const info=escInfo[esc]||{maquina:'—',modelo:'',break:''};
-    resultado.push({
-      maquina:  info.maquina,
-      escenario:esc,
-      operador: '—',
-      turno:    turnoAct,
-      modelo:   info.modelo,
-      break:    '',
-      _sombra:  true
-    });
+    resultado.push({maquina:escInfo[esc]?.maquina||'—',escenario:esc,operador:'—',turno:turnoAct,_sombra:true});
   });
 
-  // 9. Guardar y subir al servidor
-  // Limpiar disabledStations para los escenarios incluidos en la rotación
-  // (solo se deshabilitan los que están en rotacionDesactivados, no todos)
+  // ── Aplicar a tabla local ─────────────────────────────────────────────────
   escActivosOrden.forEach(e=>disabledStations.delete(e));
-  saveLocal();
   operadores=resultado;
   saveLocal();
-  try{
-    const res=await apiPost({
-      action:'guardar_operadores',
-      operadores:resultado,
-      fecha:hoyStr,
-      turno:turnoAct
-    });
-    if(!res.ok) console.warn('Error guardando operadores:',res.error);
-    else addLog('Rotación guardada · '+hoyStr+' · turno '+turnoAct);
-  }catch(e){console.warn('Error sync operadores:',e);}
 
-  // 10. Texto WhatsApp agrupado por modelo (Trossen primero)
-  const diasSem=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-  const fechaStr=hoy.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});
-  const trossen=resultado.filter(r=>!r._sombra&&r.modelo.toLowerCase().includes('trossen'));
-  const otros  =resultado.filter(r=>!r._sombra&&!r.modelo.toLowerCase().includes('trossen')&&r.modelo);
-  const sombras=resultado.filter(r=>r._sombra&&r.operador!=='—');
-
-  let waText=`*Rotación ${diasSem[diaSemana]} ${fechaStr} — Turno ${turnoAct}*\n`;
-  waText+=`━━━━━━━━━━━━━━━━━━━━\n`;
-  if(trossen.length){
-    waText+=`*🤖 Trossen*\n`;
-    trossen.forEach(r=>{ waText+=`*${r.escenario}* │ ${r.operador}\n`; });
-  }
-  if(otros.length){
-    waText+=`\n*🔵 Yam-0 / Otros*\n`;
-    otros.forEach(r=>{ waText+=`*${r.escenario}* │ ${r.operador}\n`; });
-  }
-  if(sombras.length){
-    waText+=`\n*🟡 Sombras*\n`;
-    sombras.forEach(r=>{ waText+=`${r.escenario} │ ${r.operador} (sombra)\n`; });
-  }
-  waText+=`━━━━━━━━━━━━━━━━━━━━`;
-
-  const waCard=document.getElementById('wa-card');
-  const waEl  =document.getElementById('wa-text');
-  if(waCard&&waEl){
-    waEl.textContent=waText;
-    waCard.style.display='block';
-    waCard.scrollIntoView({behavior:'smooth',block:'nearest'});
+  // ── Guardar en Sheets (solo días laborales normales) ──────────────────────
+  let guardado=false;
+  if(!esTiempoExtra){
+    try{
+      const res=await apiPost({
+        action:'guardar_operadores_bitacora',
+        operadores:resultado,
+        fecha:fechaTarget,
+        turno:turnoAct
+      });
+      if(res&&res.ok){
+        guardado=true;
+        addLog('Rotación guardada en bitácora · '+fechaTarget+' · turno '+turnoAct);
+      } else {
+        console.warn('No se pudo guardar en bitácora:',res);
+      }
+    }catch(e){console.warn('Error guardando bitácora:',e);}
   }
 
   renderOpTable();renderMain();
-  addLog('Rotación generada · '+fechaStr+' · turno '+turnoAct);
+
+  // ── Generar imagen para WhatsApp ──────────────────────────────────────────
+  const diasSem=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const dowTarget=fechaDate.getDay();
+  const fechaLabel=fechaDate.toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'});
+  const turnoLabel=turnoAct.charAt(0).toUpperCase()+turnoAct.slice(1);
+
+  mostrarTarjetaRotacion(resultado, diasSem[dowTarget], fechaLabel, turnoLabel, fechaTarget, guardado, esTiempoExtra);
+  addLog('Rotación generada · '+fechaTarget+' · turno '+turnoAct+(esTiempoExtra?' (tiempo extra, no guardada)':''));
+}
+
+// ── Tarjeta visual de rotación ────────────────────────────────────────────────
+function mostrarTarjetaRotacion(resultado, diaSem, fechaLabel, turnoLabel, fechaStr, guardado, esTiempoExtra){
+  const waCard=document.getElementById('wa-card');
+  const waEl  =document.getElementById('wa-text');
+  if(!waCard||!waEl) return;
+
+  const activos=resultado.filter(r=>!r._sombra);
+  const sombras=resultado.filter(r=>r._sombra&&r.operador!=='—');
+
+  // Construir HTML de la tarjeta imagen
+  const turnoColor={mañana:'#FF8C00',tarde:'#1A73E8',noche:'#5E35B1'}[turnoLabel.toLowerCase()]||'#1A73E8';
+  const guardadoTag=guardado
+    ?'<span style="background:#E6F4EA;color:#137333;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:600">✓ Guardada</span>'
+    :'<span style="background:#FFF3E0;color:#E65100;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:600">⚠ Tiempo extra – no guardada</span>';
+
+  const filas=activos.map(r=>`
+    <div style="display:flex;align-items:center;padding:5px 10px;border-bottom:1px solid #F0F0F0;gap:8px">
+      <span style="font-size:11px;font-weight:700;color:#1A73E8;min-width:38px">${r.escenario}</span>
+      <span style="font-size:12px;color:#444;flex:1">${r.operador}</span>
+    </div>`).join('');
+
+  const sombraFilas=sombras.length?`
+    <div style="padding:5px 10px;font-size:10px;font-weight:600;color:#888;background:#F9F9F9;border-top:1px solid #E8E8E8">SOMBRA</div>
+    ${sombras.map(r=>`<div style="display:flex;padding:4px 10px;gap:8px;background:#F9F9F9">
+      <span style="font-size:11px;font-weight:700;color:#AAA;min-width:38px">${r.escenario}</span>
+      <span style="font-size:11px;color:#AAA">${r.operador}</span>
+    </div>`).join('')}`:'';
+
+  const imgHtml=`<div id="rot-img-wrap" style="font-family:system-ui,sans-serif;background:#fff;border-radius:12px;overflow:hidden;width:280px;box-shadow:0 2px 12px rgba(0,0,0,.12)">
+    <div style="background:${turnoColor};padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="color:#fff;font-size:13px;font-weight:700">Rotación ${diaSem} ${fechaLabel}</div>
+        <div style="color:rgba(255,255,255,.8);font-size:10px">Turno ${turnoLabel}</div>
+      </div>
+      ${guardadoTag}
+    </div>
+    <div style="max-height:420px;overflow:hidden">${filas}${sombraFilas}</div>
+    <div style="padding:6px 10px;background:#F5F5F7;font-size:9px;color:#AAA;text-align:right">Generado ${new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}</div>
+  </div>`;
+
+  waEl.innerHTML=imgHtml;
+  waCard.style.display='block';
+  waCard.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 function copiarWA(){
-  const el=document.getElementById('wa-text');
-  if(!el) return;
-  navigator.clipboard.writeText(el.textContent).then(()=>{
-    const btn=el.previousElementSibling;
-    // find copy btn
-    const copyBtn=document.querySelector('#wa-card .bsm');
-    if(copyBtn){const orig=copyBtn.textContent;copyBtn.textContent='✓ Copiado!';setTimeout(()=>copyBtn.textContent=orig,2000);}
-  }).catch(()=>{
-    // fallback
-    const r=document.createRange();r.selectNode(el);
-    window.getSelection().removeAllRanges();window.getSelection().addRange(r);
-    document.execCommand('copy');
-    window.getSelection().removeAllRanges();
-  });
+  // Copiar como imagen al portapapeles
+  const wrap=document.getElementById('rot-img-wrap');
+  if(!wrap) return;
+  const btn=document.querySelector('#wa-card button.bsm');
+
+  function doCapture(){
+    if(btn){btn.textContent='⏳...';btn.disabled=true;}
+    html2canvas(wrap,{backgroundColor:'#ffffff',scale:3,useCORS:true,logging:false}).then(canvas=>{
+      canvas.toBlob(blob=>{
+        if(!blob){if(btn){btn.textContent='📋 Copiar';btn.disabled=false;}return;}
+        try{
+          navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(()=>{
+            if(btn){btn.textContent='✓ ¡Copiado!';btn.style.background='#34A853';btn.style.color='#fff';
+              setTimeout(()=>{btn.textContent='📋 Copiar img';btn.style.background='';btn.style.color='';btn.disabled=false;},2500);}
+          }).catch(()=>fallbackDescargaRot(canvas,btn));
+        }catch(e){fallbackDescargaRot(canvas,btn);}
+      },'image/png');
+    }).catch(()=>{if(btn){btn.textContent='📋 Copiar img';btn.disabled=false;}alert('No se pudo capturar la imagen.');});
+  }
+
+  if(typeof html2canvas==='undefined'){
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload=doCapture;document.head.appendChild(s);
+  } else doCapture();
 }
 
+function fallbackDescargaRot(canvas,btn){
+  const a=document.createElement('a');
+  const ts=new Date().toISOString().slice(0,16).replace('T','_').replace(':','-');
+  a.download='rotacion_'+ts+'.png';a.href=canvas.toDataURL('image/png');a.click();
+  if(btn){btn.textContent='⬇ Descargado';setTimeout(()=>{btn.textContent='📋 Copiar img';btn.disabled=false;},2500);}
+}
 // ══ DOWNTIME MANAGEMENT ══
 
 function iniciarDT(estacion){
@@ -2036,6 +2144,18 @@ function calcHoraFin(horaIni, durMin){
 function abrirModalBreak(id){
   brkEditId=id;
   const modal=document.getElementById('brk-modal');if(!modal)return;
+
+  // Poblar opciones de hora (00–23) si aún no están
+  const selH=document.getElementById('brk-m-hora-h');
+  if(selH&&selH.options.length===0){
+    for(let i=0;i<24;i++){
+      const v=String(i).padStart(2,'0');
+      const o=document.createElement('option');
+      o.value=v;o.textContent=v;
+      selH.appendChild(o);
+    }
+  }
+
   document.getElementById('brk-modal-title').textContent=id?'Editar break':'Nuevo break';
   if(id){
     const t=(settings.breakTemplates||[]).find(x=>x.id===id);
@@ -3342,7 +3462,7 @@ function sw(name,btn){
   if(name==='tabla')renderTable();
   if(name==='almacen')renderInv();
   if(name==='editar'){applyBg();renderEdit();setupEdit();actualizarSelectMaquinas();}
-  if(name==='ajustes'){renderPromedios();loadSettingsUI();renderMaquinas();renderDTTemplates();renderRotChips();renderBreakTemplates();}
+  if(name==='ajustes'){renderPromedios();loadSettingsUI();renderMaquinas();renderDTTemplates();renderRotChips();renderBreakTemplates();renderFestivos();}
   if(name==='croquis'){renderMain();renderAlertas();}
   if(name==='operacion'){renderOpTable();renderCambios();}
 }
@@ -3376,6 +3496,7 @@ if(typeof renderEtiquetas==='function')renderEtiquetas();
 if(typeof syncSelectEtiquetas==='function')syncSelectEtiquetas();
 if(typeof onLocoChange==='function')onLocoChange();
 renderBreakTemplates();
+renderFestivos();
 if(bgUrl){
   const uzl=document.getElementById('uzlbl');if(uzl)uzl.style.display='none';
   const ii=document.getElementById('iinfo');if(ii)ii.style.display='flex';
