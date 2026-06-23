@@ -297,14 +297,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <!-- ══ OPERACIÓN ══ -->
 <div class="view" id="view-operacion">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+
+  <!-- Barra superior -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
     <div style="display:flex;align-items:center;gap:10px">
       <div style="width:8px;height:8px;border-radius:50%;background:#ccc" id="op-sdot"></div>
       <span style="font-size:12px;color:#888" id="op-sync-lbl">Sin sincronizar</span>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <input class="ainp" id="op-filter" placeholder="🔍 Filtrar..." oninput="renderOpTable()" style="width:140px"/>
-      <select class="ainp" id="op-turno-filter" style="font-size:11px;height:28px" onchange="renderOpTable()" title="Filtrar por turno">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <input class="ainp" id="op-filter" placeholder="🔍 Filtrar..." oninput="renderOpTable()" style="width:130px"/>
+      <select class="ainp" id="op-turno-filter" style="font-size:11px;height:28px" onchange="renderOpTable()">
         <option value="">Todos los turnos</option>
         <option value="mañana">☀️ Mañana</option>
         <option value="tarde">🌤 Tarde</option>
@@ -315,55 +317,72 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <select class="ainp" id="op-fecha-sel" style="font-size:11px;height:28px" onchange="cargarOperadoresPorFecha(this.value)">
           <option value="actual">Hoy (actual)</option>
         </select>
-        <button class="bsm" onclick="cargarFechasBitacora()" title="Actualizar lista de fechas">↻</button>
+        <button class="bsm" onclick="cargarFechasBitacora()">↻</button>
       </div>
-      <button class="abtn" onclick="syncOperadores()">↻ Cargar Sheets</button>
-      <button class="abtn" style="background:#1D1D1F;color:#fff;border-color:#1D1D1F" onclick="abrirModalOp(null,event)">+ Nueva fila</button>
-      <button class="abtn" style="background:#34A853;color:#fff;border-color:#34A853" onclick="generarRotacion()">🔄 Generar rotación</button>
+      <button class="abtn" onclick="syncOperadores()">↻ Sheets</button>
+      <button class="abtn" style="background:#1D1D1F;color:#fff;border-color:#1D1D1F" onclick="abrirModalOp(null,event)">+ Fila</button>
+      <button class="abtn" style="background:#34A853;color:#fff;border-color:#34A853" onclick="generarRotacion()">🔄 Rotación</button>
+      <button class="abtn" style="background:#1A73E8;color:#fff;border-color:#1A73E8" onclick="generarReporteOp()">📊 Reporte</button>
     </div>
   </div>
 
+  <!-- Contadores -->
+  <div id="op-contadores" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
+
+  <!-- Tabla principal -->
   <div style="overflow-x:auto;border-radius:10px;border:1px solid #E0E0E0">
-    <table style="width:100%;border-collapse:collapse;font-size:13px" id="op-table-el">
+    <table style="width:100%;border-collapse:collapse;font-size:12px" id="op-table-el">
       <thead>
         <tr style="background:#1A73E8">
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600"># Máquina</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Escenario</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Operador</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Break</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">% Bat.</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Bat. ID</th>
-          <th style="padding:10px 10px;text-align:left;color:#fff;font-size:11px;font-weight:600">Cambio est.</th>
-          <th style="padding:10px 6px;width:60px"></th>
+          <th style="padding:8px 8px;text-align:left;color:#fff;font-size:11px;font-weight:600;white-space:nowrap">Máquina</th>
+          <th style="padding:8px 8px;text-align:left;color:#fff;font-size:11px;font-weight:600">Escenario</th>
+          <th style="padding:8px 8px;text-align:left;color:#fff;font-size:11px;font-weight:600">Operador</th>
+          <th style="padding:8px 6px;text-align:center;color:#fff;font-size:11px;font-weight:600" title="Presente en estación">✅</th>
+          <th style="padding:8px 8px;text-align:left;color:#fff;font-size:11px;font-weight:600">Break</th>
+          <th style="padding:8px 8px;text-align:left;color:#fff;font-size:11px;font-weight:600">Primer video</th>
+          <th style="padding:8px 8px;text-align:left;color:#fff;font-size:11px;font-weight:600">Auditoría 1</th>
+          <th style="padding:8px 8px;text-align:left;color:#fff;font-size:11px;font-weight:600">Auditoría 2</th>
+          <th style="padding:8px 8px;text-align:left;color:#fff;font-size:11px;font-weight:600">% Bat.</th>
+          <th style="padding:8px 8px;text-align:left;color:#fff;font-size:11px;font-weight:600">Cambio est.</th>
+          <th style="padding:8px 4px;width:50px"></th>
         </tr>
       </thead>
       <tbody id="op-tbody"></tbody>
     </table>
   </div>
 
+  <!-- Operadores no asignados -->
+  <div class="card" style="margin-top:14px" id="op-no-asignados-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="ctitle" style="margin-bottom:0;font-size:12px">👤 Operadores no asignados</div>
+    </div>
+    <div id="op-no-asignados-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+  </div>
+
   <!-- Control de cambios -->
-  <div class="card" style="margin-top:16px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+  <div class="card" style="margin-top:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div class="ctitle" style="margin-bottom:0">📋 Control de cambios de batería</div>
       <button class="bsm" onclick="cambiosBat=[];saveLocal();renderCambios()">Limpiar</button>
     </div>
-    <div style="overflow-x:auto;max-height:220px;overflow-y:auto">
+    <div style="overflow-x:auto;max-height:200px;overflow-y:auto">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead><tr style="color:#888;font-size:11px;border-bottom:1px solid #E0E0E0">
-          <th style="padding:5px 8px;text-align:left;font-weight:600">Hora</th>
-          <th style="padding:5px 8px;text-align:left;font-weight:600">Estación</th>
-          <th style="padding:5px 8px;text-align:left;font-weight:600">Máquina</th>
-          <th style="padding:5px 8px;text-align:left;font-weight:600">Bat. anterior</th>
-          <th style="padding:5px 8px;text-align:left;font-weight:600">Bat. nueva</th>
-          <th style="padding:5px 8px;text-align:left;font-weight:600">Operador</th>
-          <th style="padding:5px 8px;text-align:left;font-weight:600">Turno</th>
-         </tr></thead>
+          <th style="padding:4px 8px;text-align:left;font-weight:600">Hora</th>
+          <th style="padding:4px 8px;text-align:left;font-weight:600">Estación</th>
+          <th style="padding:4px 8px;text-align:left;font-weight:600">Máquina</th>
+          <th style="padding:4px 8px;text-align:left;font-weight:600">Bat. anterior</th>
+          <th style="padding:4px 8px;text-align:left;font-weight:600">Bat. nueva</th>
+          <th style="padding:4px 8px;text-align:left;font-weight:600">Operador</th>
+          <th style="padding:4px 8px;text-align:left;font-weight:600">Turno</th>
+        </tr></thead>
         <tbody id="cambios-tbody"></tbody>
-       </table>
+      </table>
     </div>
   </div>
-  <!-- Resultado WhatsApp -->
-  <div class="card" style="margin-top:16px;display:none" id="wa-card">
+
+  <!-- Tarjeta rotación WhatsApp -->
+  <div class="card" style="margin-top:14px;display:none" id="wa-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div class="ctitle" style="margin-bottom:0">📱 Rotación generada</div>
       <div style="display:flex;gap:6px">
@@ -858,6 +877,9 @@ const DATA_JSON_URL = "https://raw.githubusercontent.com/Prihor95/UPS_Tracker/ma
 let stations={}, assignments={}, inventory={c:[],d:[]}, log=[], bgUrl=null, promedios={};
 let disabledStations=new Set();
 let operadores=[], cambiosBat=[];
+// Datos extra por escenario: presencia, primer video, auditorías, ausencia
+// { [esc]: {presente:bool, primerVideo:'HH:MM', aud1:null|{ms,running,t0}, aud2:null|{ms,running,t0}, ausencia:''} }
+let opRowData={};
 let maquinas=[];         // catálogo: ['MA-28','MA-23',...]
 let stationMachines={};  // {J14:'MA-28', J22:'MA-23', ...}
 let settings={
@@ -876,6 +898,8 @@ let settings={
   rotacionDesactivados: [],
   // Días festivos no laborables (YYYY-MM-DD)
   diasFestivos: [],
+  // Lista maestra de operadores (desde hoja "validación de datos" en Sheets)
+  listaOperadores: []  // [{nombre:'Omar', turno:'tarde'}, ...],
   // Plantillas de downtime configurables
   downtimeTemplates:[
     {id:'comida',     label:'🍽 Comida',        pausa:true,  tipo:'fijo', turno:'mañana', ini:'13:00', fin:'14:00'},
@@ -1093,6 +1117,7 @@ function loadLocal(){
   try{operadores=JSON.parse(localStorage.getItem('upe_operadores')||'[]');}catch(e){}
   try{maquinas=JSON.parse(localStorage.getItem('upe_maquinas')||'[]');}catch(e){}
   try{stationMachines=JSON.parse(localStorage.getItem('upe_stmach')||'{}');}catch(e){}
+  try{opRowData=JSON.parse(localStorage.getItem('upe_rowdata')||'{}');}catch(e){}
   try{
     const s=JSON.parse(localStorage.getItem('upe_settings')||'{}');
     settings={...settings,...s};
@@ -1118,6 +1143,7 @@ function saveLocal(){
     localStorage.setItem('upe_settings',JSON.stringify(settings));
     localStorage.setItem('upe_disabled',JSON.stringify([...disabledStations]));
     localStorage.setItem('upe_cambios',JSON.stringify(cambiosBat));
+    localStorage.setItem('upe_rowdata',JSON.stringify(opRowData));
     localStorage.setItem('upe_operadores',JSON.stringify(operadores));
     localStorage.setItem('upe_maquinas',JSON.stringify(maquinas));
     localStorage.setItem('upe_stmach',JSON.stringify(stationMachines));
@@ -2145,9 +2171,10 @@ function abrirModalBreak(id){
   brkEditId=id;
   const modal=document.getElementById('brk-modal');if(!modal)return;
 
-  // Poblar opciones de hora (00–23) si aún no están
+  // Limpiar y repoblar opciones de hora (00–23) siempre, para evitar basura cacheada
   const selH=document.getElementById('brk-m-hora-h');
-  if(selH&&selH.options.length===0){
+  if(selH){
+    selH.innerHTML='';
     for(let i=0;i<24;i++){
       const v=String(i).padStart(2,'0');
       const o=document.createElement('option');
@@ -3055,6 +3082,117 @@ function syncOperadores(){
 function normEsc(s){return (s||'').replace(/\s+/g,'').toUpperCase();}
 function getVal(op,keys){for(const k of keys){if(op[k]!==undefined&&op[k]!=='')return op[k];}return '';}
 
+function getRowData(esc){
+  if(!opRowData[esc]) opRowData[esc]={presente:false,primerVideo:'',aud1:null,aud2:null,ausencia:''};
+  return opRowData[esc];
+}
+
+function togglePresente(esc){
+  getRowData(esc).presente=!opRowData[esc].presente;
+  saveLocal();renderOpTable();renderContadores();
+}
+
+function setPrimerVideo(esc,val){
+  getRowData(esc).primerVideo=val.trim();
+  saveLocal();renderContadores();
+}
+
+function setAusencia(esc,val){
+  getRowData(esc).ausencia=val;
+  saveLocal();renderNoAsignados();
+}
+
+// Cronómetro de auditoría
+function audStart(esc,n){
+  const rd=getRowData(esc);
+  const key='aud'+n;
+  if(!rd[key]) rd[key]={ms:0,running:false,t0:null};
+  if(rd[key].running) return;
+  rd[key].running=true;
+  rd[key].t0=Date.now();
+  saveLocal();renderOpTable();
+}
+function audPause(esc,n){
+  const rd=getRowData(esc);
+  const key='aud'+n;
+  if(!rd[key]||!rd[key].running) return;
+  rd[key].ms+=(Date.now()-rd[key].t0);
+  rd[key].running=false;rd[key].t0=null;
+  saveLocal();renderOpTable();
+}
+function audReset(esc,n){
+  const rd=getRowData(esc);
+  rd['aud'+n]={ms:0,running:false,t0:null};
+  saveLocal();renderOpTable();
+}
+function fmtAud(rd,key){
+  if(!rd||!rd[key]) return '0:00';
+  const total=rd[key].running?(rd[key].ms+(Date.now()-rd[key].t0)):rd[key].ms;
+  const s=Math.floor(total/1000);
+  return Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');
+}
+
+function renderContadores(){
+  const el=document.getElementById('op-contadores');if(!el)return;
+  const turnoFiltro=((document.getElementById('op-turno-filter')||{}).value||'').toLowerCase();
+  const rows=(operadores||[]).filter(op=>{
+    if(!turnoFiltro) return true;
+    return (getVal(op,['turno','Turno'])||'').toLowerCase()===turnoFiltro;
+  });
+
+  let presentes=0, trossen=0, yam=0, videos=[];
+  rows.forEach(op=>{
+    const esc=normEsc(getVal(op,['escenario','Escenario']));
+    const maq=(getVal(op,['maquina','Maquina'])||'').toLowerCase();
+    const rd=getRowData(esc);
+    if(rd.presente) presentes++;
+    if(maq.startsWith('ma-')) trossen++;
+    if(maq.startsWith('yam-')) yam++;
+    if(rd.primerVideo) videos.push(rd.primerVideo);
+  });
+
+  let promedioVideo='—';
+  if(videos.length){
+    const mins=videos.map(v=>{const[h,m]=(v||'00:00').split(':').map(Number);return h*60+(m||0);}).filter(m=>!isNaN(m));
+    if(mins.length){const avg=Math.round(mins.reduce((a,b)=>a+b,0)/mins.length);promedioVideo=String(Math.floor(avg/60)).padStart(2,'0')+':'+String(avg%60).padStart(2,'0');}
+  }
+
+  const chip=(label,val,color)=>`<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#fff;border:1px solid #E0E0E0;border-radius:8px;font-size:12px">
+    <span style="color:#888">${label}</span><span style="font-weight:700;color:${color};font-size:14px">${val}</span>
+  </div>`;
+
+  el.innerHTML=
+    chip('✅ En estación',presentes,'#137333')+
+    chip('🔵 Trossen',trossen,'#1A73E8')+
+    chip('🟡 Yamaha',yam,'#B06000')+
+    chip('🕐 Prom. arranque',promedioVideo,'#5E35B1');
+}
+
+function renderNoAsignados(){
+  const el=document.getElementById('op-no-asignados-list');if(!el)return;
+  const turnoFiltro=((document.getElementById('op-turno-filter')||{}).value||'').toLowerCase();
+  const asignados=new Set((operadores||[]).map(op=>
+    (getVal(op,['operador','Operador'])||'').trim().toLowerCase()).filter(Boolean));
+  const lista=(settings.listaOperadores||[]).filter(op=>{
+    if(turnoFiltro && (op.turno||'').toLowerCase()!==turnoFiltro) return false;
+    return !asignados.has((op.nombre||'').trim().toLowerCase());
+  });
+  if(!lista.length){el.innerHTML='<span style="color:#AAA;font-size:11px">Todos asignados ✓</span>';return;}
+  const ausOpts=['','falta','sombra','falta justificada'];
+  el.innerHTML=lista.map(op=>{
+    const rd=getRowData('_noasig_'+(op.nombre||'').replace(/\s/g,'_'));
+    const selOpts=ausOpts.map(v=>`<option value="${v}" ${rd.ausencia===v?'selected':''}>${v||'— Estado —'}</option>`).join('');
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:#F9F9F9;border:1px solid #E8E8E8;border-radius:7px">
+      <span style="font-size:12px;font-weight:500">${op.nombre}</span>
+      <span style="font-size:10px;color:#888">${op.turno||''}</span>
+      <select class="ainp" style="font-size:11px;height:24px;padding:1px 4px"
+        onchange="setAusencia('_noasig_${(op.nombre||'').replace(/\s/g,'_')}',this.value)">
+        ${selOpts}
+      </select>
+    </div>`;
+  }).join('');
+}
+
 function renderOpTable(){
   const tbody=document.getElementById('op-tbody');if(!tbody)return;
   const fl=((document.getElementById('op-filter')||{}).value||'').toLowerCase();
@@ -3066,149 +3204,153 @@ function renderOpTable(){
     const maq=getVal(op,['maquina','Maquina'])||'—';
     const oper=getVal(op,['operador','Operador'])||'—';
     const turnoOp=getVal(op,['turno','Turno'])||'—';
-    const modelo=getVal(op,['modelo','Modelo'])||'';
     const asgn=assignments[esc]||null;
-    rows.push({esc,maq,oper,turnoOp,modelo,asgn,
+    rows.push({esc,maq,oper,turnoOp,asgn,
       pct:asgn?estimarPorcentaje(esc):null,
       hora:asgn?estimarHoraCambio(esc):null,
       idx,disabled:disabledStations.has(esc)});
   });
-  // Estaciones activas sin fila de operadores
   Object.entries(assignments).forEach(([esc,asgn])=>{
     if(!asgn||!asgn.upe_id)return;
     if((operadores||[]).find(o=>normEsc(getVal(o,['escenario','Escenario']))===esc))return;
-    rows.push({esc,maq:'—',oper:'—',turnoOp:'—',modelo:'',asgn,
+    rows.push({esc,maq:'—',oper:'—',turnoOp:'—',asgn,
       pct:estimarPorcentaje(esc),hora:estimarHoraCambio(esc),
       idx:-1,disabled:disabledStations.has(esc)});
   });
 
   const filtered=rows
-    .filter(r=>!fl || `${r.maq} ${r.oper} ${r.esc}`.toLowerCase().includes(fl))
-    .filter(r=>!turnoFiltro || (r.turnoOp||'').toLowerCase()===turnoFiltro);
+    .filter(r=>!fl||`${r.maq} ${r.oper} ${r.esc}`.toLowerCase().includes(fl))
+    .filter(r=>!turnoFiltro||(r.turnoOp||'').toLowerCase()===turnoFiltro);
 
   if(!filtered.length){
-    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;color:#AAA;padding:28px;font-size:13px">
-      Sin datos — haz clic en <b>↻ Cargar desde Sheets</b> o <b>+ Nueva fila</b>
-    </td></tr>`;
-    return;
+    tbody.innerHTML=`<tr><td colspan="11" style="text-align:center;color:#AAA;padding:24px;font-size:13px">
+      Sin datos — carga desde Sheets o agrega una fila</td></tr>`;
+    renderContadores();renderNoAsignados();return;
   }
 
-  tbody.innerHTML=filtered.map(({esc,maq,oper,turnoOp,modelo,asgn,pct,hora,idx,disabled})=>{
+  // Lista de operadores para el select
+  const listaOps=(settings.listaOperadores||[]);
+
+  tbody.innerHTML=filtered.map(({esc,maq,oper,turnoOp,asgn,pct,hora,idx,disabled})=>{
     const pctColor=pct===null?'#888':pct<=settings.alerta?'#EA4335':pct<=40?'#FBBC04':'#34A853';
     const pctVal=pct!==null?Math.round(pct):null;
-    const est=asgn?(asgn._estado||'en-uso'):'libre';
+    const rd=getRowData(esc);
+    const esSombra=!!(getVal(operadores[idx]||{},['_sombra'])===true);
 
-    // Estado dropdown
-    const estOpts=[
-      {v:'en-uso',l:'En uso'},{v:'cambio',l:'Cambio'},
-      {v:'carga',l:'Cargando'},{v:'sombra',l:'Sombra'}];
-    const estSel=estOpts.map(o=>
-      `<option value="${o.v}" ${est===o.v?'selected':''}>${o.l}</option>`).join('');
+    // Operador select
+    const filteredOps=listaOps.filter(o=>!turnoFiltro||(o.turno||'').toLowerCase()===turnoOp.toLowerCase());
+    const opOpts=filteredOps.map(o=>`<option value="${o.nombre}" ${o.nombre===oper?'selected':''}>${o.nombre}</option>`).join('');
+    const opCell=opOpts
+      ? `<select class="ainp" style="font-size:11px;height:26px;max-width:120px" onchange="setOperadorFila(${idx},'${esc}',this.value)">
+           <option value="">— Operador —</option>${opOpts}</select>`
+      : `<span style="${esSombra?'font-style:italic;color:#B06000':''}">${esSombra?'<span style="font-size:10px;background:#FEF3E2;color:#B06000;padding:1px 4px;border-radius:3px;margin-right:3px">sombra</span>':''}${oper}</span>`;
 
-    // Turno pill color
-    const tBg=turnoOp==='mañana'?'#FEF3E2':turnoOp==='tarde'?'#E8F0FE':turnoOp==='noche'?'#EDE7F6':'#F0F0F0';
-    const tFg=turnoOp==='mañana'?'#B06000':turnoOp==='tarde'?'#1A73E8':turnoOp==='noche'?'#5E35B1':'#888';
+    // Break cell — solo nombre, timer en background
+    const allBrk=(settings.breakTemplates||[]);
+    const brkTurno=allBrk.filter(b=>b.turno===turnoOp||b.turno==='todos');
+    const now=new Date();
+    const nowMin=now.getHours()*60+now.getMinutes();
+    // Detectar break activo por hora configurada (automático)
+    const breakActivo=brkTurno.find(b=>{
+      const h=sanitizeHora(b.horaInicio);if(!h)return false;
+      const[bh,bm]=h.split(':').map(Number);
+      const startMin=bh*60+bm;
+      const endMin=startMin+(b.duracion||30);
+      return nowMin>=startMin&&nowMin<endMin;
+    });
+    let breakCell='';
+    if(!brkTurno.length){
+      breakCell='<span style="color:#CCC;font-size:11px">—</span>';
+    } else {
+      const activeBreakDT=(asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak));
+      const breakNombre=activeBreakDT
+        ?(allBrk.find(t=>t.id===activeBreakDT.tipo)||{label:activeBreakDT.tipo}).label
+        :breakActivo?breakActivo.label:'';
+      const brkOpts=brkTurno.map(t=>`<option value="${t.id}" ${activeBreakDT&&activeBreakDT.tipo===t.id?'selected':''}>${t.label} · ${sanitizeHora(t.horaInicio)||'—'}</option>`).join('');
+      breakCell=`<div>
+        ${breakNombre?`<div style="font-size:10px;font-weight:600;color:#E65100;margin-bottom:3px">☕ ${breakNombre}</div>`:''}
+        <select class="ainp" style="font-size:11px;height:24px;min-width:110px"
+          onchange="if(this.value){iniciarBreak('${esc}',this.value);this.value=''}">
+          <option value="">— Break —</option>${brkOpts}
+        </select>
+      </div>`;
+    }
+
+    // Auditoría cell
+    const audCell=(n)=>{
+      const key='aud'+n;
+      const a=rd[key];
+      const val=fmtAud(rd,key);
+      const running=a&&a.running;
+      const hasVal=a&&a.ms>0;
+      if(running){
+        return `<div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:12px;font-weight:600;color:#1A73E8;min-width:36px">${val}</span>
+          <button class="bsm" style="padding:1px 5px" onclick="audPause('${esc}',${n})">⏸</button>
+        </div>`;
+      } else if(hasVal){
+        return `<div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:12px;font-weight:600;color:#137333;min-width:36px">${val}</span>
+          <button class="bsm" style="padding:1px 5px" onclick="audReset('${esc}',${n})">✕</button>
+        </div>`;
+      } else {
+        return `<button class="bsm" style="padding:2px 7px;font-size:11px" onclick="audStart('${esc}',${n})">▶ Iniciar</button>`;
+      }
+    };
 
     const editBtns=idx>=0
       ?`<button class="bsm" onclick="abrirModalOp(${idx},event)">✎</button>
-        <button class="bsm bdanger" onclick="eliminarFilaOp(${idx})">✕</button>`
-      :'';
+        <button class="bsm bdanger" onclick="eliminarFilaOp(${idx})">✕</button>`:'';
 
-    // Downtime column
-    const activeDT = (asgn&&asgn._downtimes||[]).find(d=>!d.fin);
-    const dtTemplates = (settings.downtimeTemplates||[]).filter(t=>t.tipo==='manual');
-    let dtCell='';
-    if(!asgn||!asgn.upe_id){
-      dtCell='<span style="color:#CCC;font-size:11px">—</span>';
-    } else if(activeDT){
-      const tpl=(settings.downtimeTemplates||[]).find(t=>t.id===activeDT.tipo)||{label:activeDT.tipo};
-      const durMin=Math.round((Date.now()-new Date(activeDT._tsStart||activeDT.inicio))/60000);
-      dtCell=`<div style="display:flex;flex-direction:column;gap:4px">
-        <span class="dt-badge dt-active">⏸ ${tpl.label} · ${durMin}m</span>
-        <button class="dt-btn end" onclick="terminarDT('${esc}')">✓ Terminar</button>
-      </div>`;
-    } else {
-      const opts=dtTemplates.map(t=>`<option value="${t.id}">${t.label}</option>`).join('');
-      dtCell= opts
-        ? `<div style="display:flex;gap:4px;align-items:center">
-            <select class="ainp" id="dt-sel-${esc}" style="font-size:11px;padding:3px 5px;height:26px">${opts}</select>
-            <button class="dt-btn start" onclick="iniciarDT('${esc}')">⏸ Iniciar</button>
-           </div>`
-        : '<span style="color:#AAA;font-size:11px">Sin plantillas</span>';
-    }
+    const rowBg=disabled?'opacity:.45':esSombra?'background:#FFFDE7':'';
 
-    // Sombra flag from operadores list
-    const esSombraOp=!!(getVal(operadores[idx]||{},['_sombra'])===true||(asgn&&asgn._estado==='sombra'));
-    const sombraStyle=esSombraOp?'font-style:italic;color:#B06000':'';
-    const enBreakRow=!!(asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak));
-
-    return `<tr style="${disabled?'opacity:.45':enBreakRow?'background:#FFF8E1':''}">
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
-        <span style="display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600;background:#E6F4EA;color:#137333">${maq}</span>
-        ${enBreakRow?'<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#FFF3E0;color:#E65100;margin-left:4px">☕</span>':''}
+    return `<tr style="${rowBg}">
+      <td style="padding:6px 8px;border-bottom:1px solid #F5F5F5;white-space:nowrap">
+        <span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:600;background:#E6F4EA;color:#137333">${maq}</span>
       </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-weight:500">${esc||'—'}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;${sombraStyle}">
-        ${esSombraOp?'<span style="font-size:10px;background:#FEF3E2;color:#B06000;padding:1px 5px;border-radius:4px;margin-right:4px">sombra</span>':''}${oper}
+      <td style="padding:6px 8px;border-bottom:1px solid #F5F5F5;font-weight:500;font-size:12px">${esc||'—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #F5F5F5">${opCell}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #F5F5F5;text-align:center">
+        <input type="checkbox" ${rd.presente?'checked':''} onchange="togglePresente('${esc}')"
+          style="width:16px;height:16px;cursor:pointer;accent-color:#34A853"/>
       </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
-        ${(()=>{
-          const allBrk=(settings.breakTemplates||[]);
-          const brkTpls=allBrk.filter(b=>b.turno===turnoOp||b.turno==='todos');
-          if(!allBrk.length) return '<span style="color:#AAA;font-size:11px">—</span>';
-          const activeBreak=(asgn&&asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
-          if(activeBreak){
-            const tpl=allBrk.find(t=>t.id===activeBreak.tipo)||{label:activeBreak.tipo,duracion:30};
-            const dur=tpl.duracion||30;
-            const elapsedMin=Math.floor((Date.now()-new Date(activeBreak._tsStart||activeBreak.inicio))/60000);
-            const restante=Math.max(0,dur-elapsedMin);
-            const pct=Math.min(100,Math.round(elapsedMin/dur*100));
-            const barColor=restante===0?'#EA4335':restante<=5?'#FBBC04':'#34A853';
-            return `<div style="min-width:120px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
-                <span style="font-size:11px;font-weight:600;color:#E65100">☕ ${tpl.label}</span>
-                <button class="bsm" style="font-size:10px;padding:1px 6px;color:#137333;border-color:#34A853" onclick="terminarBreak('${esc}')">✓</button>
-              </div>
-              <div style="font-size:12px;color:${barColor};font-weight:700;margin-bottom:3px">${restante===0?'¡Tiempo!':restante+' min'}</div>
-              <div style="height:4px;background:#E0E0E0;border-radius:2px;overflow:hidden;margin-bottom:5px">
-                <div style="height:100%;border-radius:2px;background:${barColor};width:${pct}%"></div>
-              </div>
-              <select class="ainp" style="font-size:11px;padding:2px 4px;height:24px;width:100%"
-                onchange="if(this.value!=='${activeBreak.tipo}')cambiarBreak('${esc}',this.value)">
-                ${brkTpls.map(t=>`<option value="${t.id}" ${t.id===activeBreak.tipo?'selected':''}>${t.label} ${sanitizeHora(t.horaInicio)||''}</option>`).join('')}
-              </select>
-            </div>`;
-          }
-          if(!brkTpls.length) return '<span style="color:#CCC;font-size:11px">—</span>';
-          const opts=brkTpls.map(t=>`<option value="${t.id}">${t.label} · ${sanitizeHora(t.horaInicio)||'—'} (${t.duracion||30}m)</option>`).join('');
-          return `<select class="ainp" style="font-size:11px;padding:3px 5px;height:28px;min-width:130px"
-            onchange="if(this.value){iniciarBreak('${esc}',this.value);this.value=''}">
-            <option value="">— Break —</option>
-            ${opts}
-          </select>`;
-        })()}
+      <td style="padding:6px 8px;border-bottom:1px solid #F5F5F5">${breakCell}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #F5F5F5">
+        <input type="text" value="${rd.primerVideo||''}" placeholder="HH:MM"
+          style="width:58px;padding:2px 5px;border:1px solid #E0E0E0;border-radius:5px;font-size:12px;text-align:center"
+          onchange="setPrimerVideo('${esc}',this.value)"/>
       </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5">
+      <td style="padding:6px 8px;border-bottom:1px solid #F5F5F5">${audCell(1)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #F5F5F5">${audCell(2)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #F5F5F5">
         ${asgn&&asgn.upe_id
-          ? `<div style="display:flex;align-items:center;gap:5px">
-               <input type="number" min="0" max="100"
-                 value="${pctVal!==null?pctVal:''}"
-                 style="width:54px;padding:3px 5px;border:1px solid ${pctColor};border-radius:5px;font-size:13px;font-weight:700;color:${pctColor};text-align:center;background:#fff"
-                 onchange="setPctManual('${esc}',this.value)"
-                 title="Editar % de batería"/>
-               <span style="font-size:11px;font-weight:600;color:${pctColor}">%</span>
-             </div>`
-          : '<span style="color:#AAA">—</span>'}
+          ?`<div style="display:flex;align-items:center;gap:3px">
+              <input type="number" min="0" max="100" value="${pctVal!==null?pctVal:''}"
+                style="width:46px;padding:2px 4px;border:1px solid ${pctColor};border-radius:5px;font-size:12px;font-weight:700;color:${pctColor};text-align:center"
+                onchange="setPctManual('${esc}',this.value)"/>
+              <span style="font-size:10px;color:${pctColor}">%</span>
+            </div>`
+          :'<span style="color:#AAA">—</span>'}
       </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-size:12px;color:#444">
-        ${asgn&&asgn.upe_id?asgn.upe_id:'<span style="color:#AAA">—</span>'}
+      <td style="padding:6px 8px;border-bottom:1px solid #F5F5F5;font-size:11px">
+        ${hora?`<span style="color:#1A73E8">~${hora}</span>`:'<span style="color:#AAA">—</span>'}
       </td>
-      <td style="padding:8px 10px;border-bottom:1px solid #F5F5F5;font-size:12px">
-        ${hora?'<span style="color:#1A73E8">~'+hora+'</span>':'<span style="color:#AAA">—</span>'}
-      </td>
-      <td style="padding:8px 6px;border-bottom:1px solid #F5F5F5;white-space:nowrap">${editBtns}</td>
+      <td style="padding:6px 4px;border-bottom:1px solid #F5F5F5;white-space:nowrap">${editBtns}</td>
     </tr>`;
   }).join('');
+
+  renderContadores();
+  renderNoAsignados();
+}
+
+function setOperadorFila(idx, esc, nombre){
+  if(idx>=0&&operadores[idx]){
+    operadores[idx].operador=nombre;
+    operadores[idx].Operador=nombre;
+    saveLocal();
+    apiPost({action:'guardar_operadores',operadores}).catch(()=>{});
+  }
+  renderContadores();renderNoAsignados();
 }
 
 function abrirModalOp(idx, event){
@@ -3358,6 +3500,76 @@ function terminarBreak(estacion){
   renderOpTable();renderMain();renderAlertas();
 }
 
+async function generarReporteOp(){
+  const turnoFiltro=((document.getElementById('op-turno-filter')||{}).value||'');
+  const fecha=new Date().toISOString().slice(0,10);
+  const hora=new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+
+  const filas=(operadores||[])
+    .filter(op=>!turnoFiltro||(getVal(op,['turno','Turno'])||'').toLowerCase()===turnoFiltro)
+    .map(op=>{
+      const esc=normEsc(getVal(op,['escenario','Escenario']));
+      const rd=getRowData(esc);
+      const asgn=assignments[esc]||{};
+      const breakActivo=(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
+      const breakNombre=breakActivo?((settings.breakTemplates||[]).find(t=>t.id===breakActivo.tipo)||{label:breakActivo.tipo}).label:'';
+      return {
+        fecha, hora, turno:getVal(op,['turno','Turno'])||'',
+        maquina:getVal(op,['maquina','Maquina'])||'',
+        escenario:esc,
+        operador:getVal(op,['operador','Operador'])||'',
+        presente:rd.presente?'Sí':'No',
+        break:breakNombre,
+        primerVideo:rd.primerVideo||'',
+        auditoria1:fmtAud(rd,'aud1'),
+        auditoria2:fmtAud(rd,'aud2'),
+        pctBat:asgn.upe_id?(Math.round(estimarPorcentaje(esc)||0)+'%'):''
+      };
+    });
+
+  // Operadores no asignados
+  const ausencias=[];
+  const asignados=new Set((operadores||[]).map(op=>(getVal(op,['operador','Operador'])||'').trim().toLowerCase()));
+  (settings.listaOperadores||[]).filter(op=>!turnoFiltro||(op.turno||'').toLowerCase()===turnoFiltro)
+    .filter(op=>!asignados.has((op.nombre||'').toLowerCase()))
+    .forEach(op=>{
+      const rd=getRowData('_noasig_'+(op.nombre||'').replace(/\s/g,'_'));
+      ausencias.push({fecha,hora,turno:op.turno||'',maquina:'',escenario:'',
+        operador:op.nombre,presente:'No',break:'',primerVideo:'',auditoria1:'',auditoria2:'',
+        pctBat:'',ausencia:rd.ausencia||''});
+    });
+
+  const btn=document.querySelector('[onclick="generarReporteOp()"]');
+  if(btn){btn.textContent='⏳ Guardando...';btn.disabled=true;}
+  try{
+    const res=await apiPost({
+      action:'guardar_reporte_operacion',
+      filas:[...filas,...ausencias],
+      fecha, turno:turnoFiltro||'todos'
+    });
+    if(btn){btn.textContent='✓ Guardado';btn.style.background='#34A853';
+      setTimeout(()=>{btn.textContent='📊 Reporte';btn.style.background='';btn.disabled=false;},2500);}
+    addLog('Reporte guardado en Sheets · '+fecha+(turnoFiltro?' · '+turnoFiltro:''));
+  }catch(e){
+    if(btn){btn.textContent='📊 Reporte';btn.style.background='';btn.disabled=false;}
+    alert('Error guardando reporte: '+e.message);
+  }
+}
+
+// Carga lista de operadores desde hoja "validación de datos" en Sheets
+async function syncListaOperadores(){
+  try{
+    const r=await fetch(settings.api+'?action=lista_operadores&t='+Date.now(),{redirect:'follow'});
+    const d=await r.json();
+    if(d.ok&&d.operadores){
+      settings.listaOperadores=d.operadores; // [{nombre,turno}]
+      saveLocal();
+      renderOpTable();
+      addLog('Lista de operadores actualizada ('+d.operadores.length+')');
+    }
+  }catch(e){console.warn('syncListaOperadores:',e);}
+}
+
 function setPctManual(estacion, valor){
   const pct=Math.max(0,Math.min(100,parseInt(valor)));
   if(isNaN(pct)) return;
@@ -3497,6 +3709,7 @@ if(typeof syncSelectEtiquetas==='function')syncSelectEtiquetas();
 if(typeof onLocoChange==='function')onLocoChange();
 renderBreakTemplates();
 renderFestivos();
+syncListaOperadores();
 if(bgUrl){
   const uzl=document.getElementById('uzlbl');if(uzl)uzl.style.display='none';
   const ii=document.getElementById('iinfo');if(ii)ii.style.display='flex';
@@ -3513,11 +3726,12 @@ setInterval(()=>{
   renderMain();renderAlertas();renderTable();renderOpTable();
 },60000);
 
-// Re-renderiza la tabla de operación cada 30s para actualizar contadores de break
+// Re-renderiza la tabla de operación cada 30s para actualizar contadores de break y auditorías
 setInterval(()=>{
-  const hayBreakActivo=Object.values(assignments).some(a=>a&&(a._downtimes||[]).some(d=>!d.fin&&d._esBreak));
-  if(hayBreakActivo) renderOpTable();
-},30000);
+  const hayActivo=Object.values(assignments).some(a=>a&&(a._downtimes||[]).some(d=>!d.fin&&d._esBreak));
+  const hayAudRunning=Object.values(opRowData).some(r=>(r.aud1&&r.aud1.running)||(r.aud2&&r.aud2.running));
+  if(hayActivo||hayAudRunning) renderOpTable();
+},10000);
 
 // Sincroniza con Sheets cada 30 segundos
 let autoSyncInterval=null;
