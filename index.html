@@ -1418,23 +1418,32 @@ async function syncFromSheets(silent=false){
     if(data.promedios)   promedios=data.promedios;
     if(data.operadores&&data.operadores.length){
       operadores=data.operadores;
-      // Extraer rowdata directamente de los campos de cada operador
+      // Extraer rowdata desde los campos de cada operador
+      // Regla: local gana sobre servidor en presente/auditorías (evitar reset por latencia)
       data.operadores.forEach(op=>{
         const esc=normEsc(op.escenario||op.Escenario||'');
         if(!esc) return;
         const rd=getRowData(esc);
-        // Solo actualizar si no hay cronómetro corriendo localmente
-        rd.presente=(op.presente===true||op.presente==='true');
-        rd.primerVideo=op.primer_video||rd.primerVideo||'';
-        rd.ausencia=op.ausencia||rd.ausencia||'';
-        // Auditorías: no sobreescribir si están corriendo
+        const serverPresente=(op.presente===true||op.presente==='true');
+        const serverTs=parseInt(op.presente_ts||0);
+        const localTs=rd._presenteTs||0;
+        // Gana el más reciente; si no hay timestamps, OR (true gana)
+        if(localTs>0||serverTs>0){
+          rd.presente=localTs>=serverTs?rd.presente:serverPresente;
+        } else {
+          rd.presente=rd.presente||serverPresente;
+        }
+        // PrimerVideo y ausencia: servidor gana solo si local está vacío
+        if(!rd.primerVideo&&op.primer_video) rd.primerVideo=op.primer_video;
+        if(!rd.ausencia&&op.ausencia) rd.ausencia=op.ausencia;
+        // Auditorías: no sobreescribir si están corriendo; servidor gana si local es 0
         if(!(rd.aud1&&rd.aud1.running)){
           const ms1=parseAudStr(op.auditoria1);
-          if(ms1>0) rd.aud1={ms:ms1,running:false,t0:null};
+          if(ms1>0&&(!rd.aud1||rd.aud1.ms===0)) rd.aud1={ms:ms1,running:false,t0:null};
         }
         if(!(rd.aud2&&rd.aud2.running)){
           const ms2=parseAudStr(op.auditoria2);
-          if(ms2>0) rd.aud2={ms:ms2,running:false,t0:null};
+          if(ms2>0&&(!rd.aud2||rd.aud2.ms===0)) rd.aud2={ms:ms2,running:false,t0:null};
         }
       });
       saveLocal();
@@ -3130,6 +3139,7 @@ function pushOperadores(){
       operador:   getVal(op,['operador','Operador'])||'',
       turno:      getVal(op,['turno','Turno'])||'',
       presente:   rd.presente?'true':'false',
+      presente_ts: rd._presenteTs||'',
       break_activo: (()=>{
         const asgn=assignments[esc];
         const dt=asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
@@ -3147,7 +3157,9 @@ function pushOperadores(){
 }
 
 function togglePresente(esc){
-  getRowData(esc).presente=!opRowData[esc].presente;
+  const rd=getRowData(esc);
+  rd.presente=!rd.presente;
+  rd._presenteTs=Date.now(); // timestamp del cambio
   saveLocal();pushOperadores();renderOpTable();renderContadores();
 }
 
