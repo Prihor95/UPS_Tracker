@@ -3557,17 +3557,19 @@ async function generarReporteOp(){
 }
 
 // Carga lista de operadores desde hoja "validación de datos" en Sheets
-async function syncListaOperadores(){
-  try{
-    const r=await fetch(settings.api+'?action=lista_operadores&t='+Date.now(),{redirect:'follow'});
-    const d=await r.json();
-    if(d.ok&&d.operadores){
-      settings.listaOperadores=d.operadores; // [{nombre,turno}]
-      saveLocal();
-      renderOpTable();
-      addLog('Lista de operadores actualizada ('+d.operadores.length+')');
-    }
-  }catch(e){console.warn('syncListaOperadores:',e);}
+// Completamente silenciosa — nunca bloquea ni lanza excepción
+function syncListaOperadores(){
+  if(!settings.api||settings.api.indexOf('script.google.com')===-1) return;
+  fetch(settings.api+'?action=lista_operadores&t='+Date.now(),{redirect:'follow'})
+    .then(r=>r.json())
+    .then(d=>{
+      if(d&&d.ok&&Array.isArray(d.operadores)&&d.operadores.length){
+        settings.listaOperadores=d.operadores;
+        saveLocal();
+        renderOpTable();
+      }
+    })
+    .catch(()=>{}); // falla silenciosamente
 }
 
 function setPctManual(estacion, valor){
@@ -3709,7 +3711,12 @@ if(typeof syncSelectEtiquetas==='function')syncSelectEtiquetas();
 if(typeof onLocoChange==='function')onLocoChange();
 renderBreakTemplates();
 renderFestivos();
-syncListaOperadores();
+
+// Limpiar "Inicializando..." inmediatamente con datos locales
+// La sincronización con Sheets ocurre después sin bloquear
+setSS('ok','Datos locales cargados');
+
+syncListaOperadores(); // no-blocking, falla silenciosamente
 if(bgUrl){
   const uzl=document.getElementById('uzlbl');if(uzl)uzl.style.display='none';
   const ii=document.getElementById('iinfo');if(ii)ii.style.display='flex';
