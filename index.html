@@ -1416,51 +1416,67 @@ async function syncFromSheets(silent=false){
     if(data.inventario)  inventory={c:data.inventario.c||[],d:data.inventario.d||[]};
     if(data.log&&data.log.length) log=data.log;
     if(data.promedios)   promedios=data.promedios;
+
+    // Operadores — merge por timestamp igual que assignments
     if(data.operadores&&data.operadores.length){
-      operadores=data.operadores;
-      // Extraer rowdata desde los campos de cada operador
-      // Regla: local gana sobre servidor en presente/auditorías (evitar reset por latencia)
-      data.operadores.forEach(op=>{
-        const esc=normEsc(op.escenario||op.Escenario||'');
-        if(!esc) return;
+      const localOps=operadores||[];
+      // Construir mapa local por escenario
+      const localMap={};
+      localOps.forEach(op=>{
+        const esc=normEsc(getVal(op,['escenario','Escenario']));
+        if(esc) localMap[esc]=op;
+      });
+
+      const newOps=data.operadores.map(serverOp=>{
+        const esc=normEsc(serverOp.escenario||serverOp.Escenario||'');
+        const localOp=localMap[esc];
+        const tsServer=parseInt(serverOp._ts||0);
+        const tsLocal=localOp?parseInt(localOp._ts||0):0;
+        // Gana el más reciente; sin timestamps, servidor gana (tiene todo)
+        const base=(!tsServer&&!tsLocal)||tsLocal>=tsServer?{...serverOp,...localOp}:serverOp;
+
+        // Merge rowdata desde los campos del servidor
         const rd=getRowData(esc);
-        const serverPresente=(op.presente===true||op.presente==='true');
-        const serverTs=parseInt(op.presente_ts||0);
+        const serverPresente=(serverOp.presente===true||serverOp.presente==='true');
+        const serverTs=parseInt(serverOp.presente_ts||0);
         const localTs=rd._presenteTs||0;
         const ahoraMs=Date.now();
-        // Si el local cambió hace menos de 60s, ignorar el servidor
-        if(localTs>0 && (ahoraMs-localTs)<60000){
-          // conservar local
+        if(localTs>0&&(ahoraMs-localTs)<60000){
+          // cambio reciente local — conservar
         } else if(localTs>0||serverTs>0){
-          // Gana el más reciente
           rd.presente=localTs>=serverTs?rd.presente:serverPresente;
           if(serverTs>localTs) rd._presenteTs=serverTs;
         } else {
-          // Sin timestamps: OR
           rd.presente=rd.presente||serverPresente;
         }
-        // PrimerVideo y ausencia: servidor gana solo si local está vacío
-        if(!rd.primerVideo&&op.primer_video) rd.primerVideo=op.primer_video;
-        if(!rd.ausencia&&op.ausencia) rd.ausencia=op.ausencia;
-        // Auditorías: no sobreescribir si están corriendo; servidor gana si local es 0
+        if(!rd.primerVideo&&serverOp.primer_video) rd.primerVideo=serverOp.primer_video;
+        if(!rd.ausencia&&serverOp.ausencia) rd.ausencia=serverOp.ausencia;
         if(!(rd.aud1&&rd.aud1.running)){
-          const ms1=parseAudStr(op.auditoria1);
+          const ms1=parseAudStr(serverOp.auditoria1);
           if(ms1>0&&(!rd.aud1||rd.aud1.ms===0)) rd.aud1={ms:ms1,running:false,t0:null};
         }
         if(!(rd.aud2&&rd.aud2.running)){
-          const ms2=parseAudStr(op.auditoria2);
+          const ms2=parseAudStr(serverOp.auditoria2);
           if(ms2>0&&(!rd.aud2||rd.aud2.ms===0)) rd.aud2={ms:ms2,running:false,t0:null};
         }
+        return base;
       });
+
+      // Conservar locales que el servidor no tenga
+      localOps.forEach(op=>{
+        const esc=normEsc(getVal(op,['escenario','Escenario']));
+        if(esc&&!newOps.find(o=>normEsc(o.escenario||o.Escenario||'')===esc)) newOps.push(op);
+      });
+
+      operadores=newOps;
       saveLocal();
     }
 
-    // Merge opRowData legacy (si existía hoja RowData vieja)
+    // Merge opRowData legacy
     if(data.rowdata){
       Object.entries(data.rowdata).forEach(([esc,rd])=>{
         const local=opRowData[esc]||{};
-        opRowData[esc]={
-          ...rd,
+        opRowData[esc]={...rd,
           aud1:(local.aud1&&local.aud1.running)?local.aud1:(rd.aud1||local.aud1||null),
           aud2:(local.aud2&&local.aud2.running)?local.aud2:(rd.aud2||local.aud2||null),
         };
@@ -3136,22 +3152,24 @@ function getRowData(esc){
 
 // Sube operadores + rowdata combinados a la hoja Operadores de Sheets
 function pushOperadores(){
+  const now=Date.now();
   const filas=(operadores||[]).map(op=>{
     const esc=normEsc(getVal(op,['escenario','Escenario']));
     const rd=getRowData(esc);
     return {
-      maquina:    getVal(op,['maquina','Maquina'])||'',
-      escenario:  esc,
-      operador:   getVal(op,['operador','Operador'])||'',
-      turno:      getVal(op,['turno','Turno'])||'',
-      presente:   rd.presente?'true':'false',
+      _ts:       now,
+      maquina:   getVal(op,['maquina','Maquina'])||'',
+      escenario: esc,
+      operador:  getVal(op,['operador','Operador'])||'',
+      turno:     getVal(op,['turno','Turno'])||'',
+      presente:  rd.presente?'true':'false',
       presente_ts: rd._presenteTs||'',
-      break_activo: (()=>{
+      break_activo:(()=>{
         const asgn=assignments[esc];
         const dt=asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
         if(!dt) return '';
         const tpl=(settings.breakTemplates||[]).find(t=>t.id===dt.tipo);
-        return tpl?tpl.label:dt.tipo;
+        return tpl?sanitizeHora(tpl.horaInicio)||tpl.label:dt.tipo;
       })(),
       primer_video: rd.primerVideo||'',
       auditoria1:   fmtAud(rd,'aud1'),
@@ -3352,10 +3370,10 @@ function renderOpTable(){
     } else {
       const activeBreakDT=(asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak));
       if(activeBreakDT){
-        // Break activo: mostrar nombre sin color naranja + botón terminar
-        const tpl=allBrk.find(t=>t.id===activeBreakDT.tipo)||{label:activeBreakDT.tipo};
+        const tpl=allBrk.find(t=>t.id===activeBreakDT.tipo)||{label:activeBreakDT.tipo,horaInicio:''};
+        const horaBreak=sanitizeHora(tpl.horaInicio)||tpl.label;
         breakCell=`<div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:11px;font-weight:500;color:#555">☕ ${tpl.label}</span>
+          <span style="font-size:11px;font-weight:600;color:#555;font-variant-numeric:tabular-nums">☕ ${horaBreak}</span>
           <button class="bsm" style="font-size:10px;padding:1px 5px;color:#137333;border-color:#34A853"
             onclick="terminarBreak('${esc}')">✓</button>
         </div>`;
