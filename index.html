@@ -1427,10 +1427,16 @@ async function syncFromSheets(silent=false){
         const serverPresente=(op.presente===true||op.presente==='true');
         const serverTs=parseInt(op.presente_ts||0);
         const localTs=rd._presenteTs||0;
-        // Gana el más reciente; si no hay timestamps, OR (true gana)
-        if(localTs>0||serverTs>0){
+        const ahoraMs=Date.now();
+        // Si el local cambió hace menos de 60s, ignorar el servidor
+        if(localTs>0 && (ahoraMs-localTs)<60000){
+          // conservar local
+        } else if(localTs>0||serverTs>0){
+          // Gana el más reciente
           rd.presente=localTs>=serverTs?rd.presente:serverPresente;
+          if(serverTs>localTs) rd._presenteTs=serverTs;
         } else {
+          // Sin timestamps: OR
           rd.presente=rd.presente||serverPresente;
         }
         // PrimerVideo y ausencia: servidor gana solo si local está vacío
@@ -3336,35 +3342,30 @@ function renderOpTable(){
       ${opOpts}
     </select>`;
 
-    // Break cell — solo nombre, timer en background
+    // Break cell — solo select, sin texto automático por hora
+    // El break solo se activa cuando el operador lo selecciona manualmente
     const allBrk=(settings.breakTemplates||[]);
     const brkTurno=allBrk.filter(b=>b.turno===turnoOp||b.turno==='todos');
-    const now=new Date();
-    const nowMin=now.getHours()*60+now.getMinutes();
-    // Detectar break activo por hora configurada (automático)
-    const breakActivo=brkTurno.find(b=>{
-      const h=sanitizeHora(b.horaInicio);if(!h)return false;
-      const[bh,bm]=h.split(':').map(Number);
-      const startMin=bh*60+bm;
-      const endMin=startMin+(b.duracion||30);
-      return nowMin>=startMin&&nowMin<endMin;
-    });
     let breakCell='';
     if(!brkTurno.length){
       breakCell='<span style="color:#CCC;font-size:11px">—</span>';
     } else {
       const activeBreakDT=(asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak));
-      const breakNombre=activeBreakDT
-        ?(allBrk.find(t=>t.id===activeBreakDT.tipo)||{label:activeBreakDT.tipo}).label
-        :breakActivo?breakActivo.label:'';
-      const brkOpts=brkTurno.map(t=>`<option value="${t.id}" ${activeBreakDT&&activeBreakDT.tipo===t.id?'selected':''}>${t.label} · ${sanitizeHora(t.horaInicio)||'—'}</option>`).join('');
-      breakCell=`<div>
-        ${breakNombre?`<div style="font-size:10px;font-weight:600;color:#E65100;margin-bottom:3px">☕ ${breakNombre}</div>`:''}
-        <select class="ainp" style="font-size:11px;height:24px;min-width:110px"
+      if(activeBreakDT){
+        // Break activo: mostrar nombre sin color naranja + botón terminar
+        const tpl=allBrk.find(t=>t.id===activeBreakDT.tipo)||{label:activeBreakDT.tipo};
+        breakCell=`<div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;font-weight:500;color:#555">☕ ${tpl.label}</span>
+          <button class="bsm" style="font-size:10px;padding:1px 5px;color:#137333;border-color:#34A853"
+            onclick="terminarBreak('${esc}')">✓</button>
+        </div>`;
+      } else {
+        const brkOpts=brkTurno.map(t=>`<option value="${t.id}">${t.label} · ${sanitizeHora(t.horaInicio)||'—'}</option>`).join('');
+        breakCell=`<select class="ainp" style="font-size:11px;height:24px;min-width:110px"
           onchange="if(this.value){iniciarBreak('${esc}',this.value);this.value=''}">
           <option value="">— Break —</option>${brkOpts}
-        </select>
-      </div>`;
+        </select>`;
+      }
     }
 
     // Auditoría cell
@@ -3528,22 +3529,36 @@ async function guardarFilaOp(){
 function iniciarBreak(estacion, tipo){
   const tpl=(settings.breakTemplates||[]).find(t=>t.id===tipo);
   if(!tpl) return;
-  if(!assignments[estacion]||!assignments[estacion].upe_id){
-    // Break sin batería asignada: aún lo registramos pero sin pausar nada
-  }
   if(!assignments[estacion]) assignments[estacion]={};
   if(!assignments[estacion]._downtimes) assignments[estacion]._downtimes=[];
-  // Si hay downtime activo no-break, no bloquear — breaks y downtimes son independientes
-  // Si ya hay break activo, terminarlo primero
-  const prevBreak=assignments[estacion]._downtimes.find(d=>!d.fin&&d._esBreak);
-  if(prevBreak){ prevBreak.fin=tsISO(); }
+  // Terminar break previo si existe
+  const prev=assignments[estacion]._downtimes.find(d=>!d.fin&&d._esBreak);
+  if(prev){ prev.fin=tsISO(); }
+
+  // La pausa de batería inicia a la hora configurada del break
+  // Si esa hora ya pasó (o no hay hora), inicia ahora
+  const horaConf=sanitizeHora(tpl.horaInicio);
+  let pausaInicio;
+  if(horaConf){
+    const[bh,bm]=horaConf.split(':').map(Number);
+    const ahora=new Date();
+    const pausaDate=new Date(ahora);
+    pausaDate.setHours(bh,bm,0,0);
+    pausaInicio=pausaDate<=ahora?tsISO():pausaDate.toISOString();
+  } else {
+    pausaInicio=tsISO();
+  }
+
   const dur=tpl.duracion||30;
-  const now=tsISO();
-  assignments[estacion]._downtimes.push({tipo, inicio:now, fin:null, _tsStart:Date.now(), _esBreak:true, _duracion:dur, _horaBreak:tpl.horaInicio||''});
+  assignments[estacion]._downtimes.push({
+    tipo, inicio:pausaInicio, fin:null,
+    _tsStart:new Date(pausaInicio).getTime(),
+    _esBreak:true, _duracion:dur, _horaBreak:horaConf||''
+  });
   saveLocal();
-  addLog(estacion+': break iniciado — '+tpl.label+' ('+dur+' min)');
-  // Auto-terminar cuando se cumple la duración
-  setTimeout(()=>autoTerminarBreak(estacion, now), dur*60000);
+  addLog(estacion+': break asignado — '+tpl.label+(horaConf?' (pausa a las '+horaConf+')':''));
+  const msHastaFin=Math.max(0,(new Date(pausaInicio).getTime()+dur*60000)-Date.now());
+  setTimeout(()=>autoTerminarBreak(estacion,pausaInicio), msHastaFin);
   if(assignments[estacion].upe_id){
     apiPost({action:'asignar_forzado',
       estacion, upe_id:assignments[estacion].upe_id,
@@ -3556,6 +3571,7 @@ function iniciarBreak(estacion, tipo){
       _downtimes:assignments[estacion]._downtimes||[]
     }).catch(()=>{});
   }
+  pushOperadores();
   renderOpTable();renderMain();renderAlertas();
 }
 
