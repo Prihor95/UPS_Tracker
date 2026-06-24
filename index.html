@@ -867,7 +867,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ══ CONFIG ══
-const DEFAULT_API = "https://script.google.com/macros/s/AKfycbxbWwMXoxhjTs8B0iZGOr4TrmU9Qji1w86t2LlPUf0gPG4NPmlmzV3ONhxow7EU4tRm/exec";
+const DEFAULT_API = "https://script.google.com/macros/s/AKfycby_LKrU1Zt5e-J9dP6XXfpRh689XSD_QCbuehQMGhxDDX3I6k3gVLLgJQ0a5OslBYJh/exec";
 // URL del data.json en GitHub (lectura pública, sin auth)
 // GitHub añade cache de ~5 min; el ?t= lo rompe para forzar datos frescos
 const DATA_JSON_URL = "https://raw.githubusercontent.com/Prihor95/UPS_Tracker/main/data.json";
@@ -1388,16 +1388,19 @@ async function syncFromSheets(silent=false){
           const dtsLocal=local._downtimes||[];
           const dtsServer=v._downtimes||[];
           const activosLocales=dtsLocal.filter(d=>!d.fin);
-          // Si hay activos locales, conservarlos más los cerrados del servidor
           const mergedDts=activosLocales.length>0
             ? [...dtsServer.filter(d=>d.fin), ...activosLocales]
             : (dtsLocal.length>=dtsServer.length?dtsLocal:dtsServer);
+          // Proteger pct_inicio si fue editado manualmente hace menos de 60s
+          const pctProtegido=local._pctTs&&(Date.now()-local._pctTs)<60000;
           newAsgn[k]={...v,
             timestamp:  v.timestamp,
             _estado:    local._estado||v._estado,
             locomotion: local.locomotion!==undefined?local.locomotion:v.locomotion,
             etiqueta:   local.etiqueta||v.etiqueta,
-            _downtimes: mergedDts
+            _downtimes: mergedDts,
+            pct_inicio: pctProtegido?local.pct_inicio:v.pct_inicio,
+            _pctTs:     local._pctTs||0
           };
         } else {
           // Baterías distintas → gana el más reciente
@@ -3730,15 +3733,14 @@ function setPctManual(estacion, valor){
   const pct=Math.max(0,Math.min(100,parseInt(valor)));
   if(isNaN(pct)) return;
   if(!assignments[estacion]||!assignments[estacion].upe_id) return;
-  // Re-anclar: timestamp = ahora, pct_inicio = valor ingresado
   assignments[estacion].timestamp=tsISO();
   assignments[estacion].pct_inicio=pct;
-  // Limpiar downtimes anteriores para que el cálculo parta limpio desde ahora
+  assignments[estacion]._pctTs=Date.now(); // protege contra overwrite del sync
   if(assignments[estacion]._downtimes){
-    assignments[estacion]._downtimes=assignments[estacion]._downtimes.filter(d=>d.fin); // conservar solo los cerrados
+    assignments[estacion]._downtimes=assignments[estacion]._downtimes.filter(d=>d.fin);
   }
   saveLocal();
-  addLog(estacion+': % bat ajustado manualmente a '+pct+'%');
+  addLog(estacion+': % bat ajustado a '+pct+'%');
   apiPost({action:'asignar_forzado',
     estacion, upe_id:assignments[estacion].upe_id,
     timestamp:assignments[estacion].timestamp,
