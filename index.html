@@ -3151,26 +3151,49 @@ function getRowData(esc){
 }
 
 // Sube operadores + rowdata combinados a la hoja Operadores de Sheets
+// Sube UNA fila de operador a Sheets (más rápido, menos conflictos)
+function pushFila(esc){
+  const op=(operadores||[]).find(o=>normEsc(getVal(o,['escenario','Escenario']))===esc);
+  if(!op) return;
+  const rd=getRowData(esc);
+  const asgn=assignments[esc];
+  const dt=asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
+  const breakHora=dt?((settings.breakTemplates||[]).find(t=>t.id===dt.tipo)||{}).horaInicio||'':'';
+  const fila={
+    _ts:        Date.now(),
+    maquina:    getVal(op,['maquina','Maquina'])||'',
+    escenario:  esc,
+    operador:   getVal(op,['operador','Operador'])||'',
+    turno:      getVal(op,['turno','Turno'])||'',
+    presente:   rd.presente?'true':'false',
+    presente_ts: rd._presenteTs||'',
+    break_activo: sanitizeHora(breakHora)||'',
+    primer_video: rd.primerVideo||'',
+    auditoria1:   fmtAud(rd,'aud1'),
+    auditoria2:   fmtAud(rd,'aud2'),
+    ausencia:     rd.ausencia||''
+  };
+  apiPost({action:'guardar_operadores', operadores:[fila]}).catch(()=>{});
+}
+
+// Sube toda la tabla (para rotación, carga inicial, etc.)
 function pushOperadores(){
   const now=Date.now();
   const filas=(operadores||[]).map(op=>{
     const esc=normEsc(getVal(op,['escenario','Escenario']));
     const rd=getRowData(esc);
+    const asgn=assignments[esc];
+    const dt=asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
+    const breakHora=dt?sanitizeHora(((settings.breakTemplates||[]).find(t=>t.id===dt.tipo)||{}).horaInicio||'')||'':'';
     return {
-      _ts:       now,
-      maquina:   getVal(op,['maquina','Maquina'])||'',
-      escenario: esc,
-      operador:  getVal(op,['operador','Operador'])||'',
-      turno:     getVal(op,['turno','Turno'])||'',
-      presente:  rd.presente?'true':'false',
+      _ts:         now,
+      maquina:     getVal(op,['maquina','Maquina'])||'',
+      escenario:   esc,
+      operador:    getVal(op,['operador','Operador'])||'',
+      turno:       getVal(op,['turno','Turno'])||'',
+      presente:    rd.presente?'true':'false',
       presente_ts: rd._presenteTs||'',
-      break_activo:(()=>{
-        const asgn=assignments[esc];
-        const dt=asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
-        if(!dt) return '';
-        const tpl=(settings.breakTemplates||[]).find(t=>t.id===dt.tipo);
-        return tpl?sanitizeHora(tpl.horaInicio)||tpl.label:dt.tipo;
-      })(),
+      break_activo: breakHora,
       primer_video: rd.primerVideo||'',
       auditoria1:   fmtAud(rd,'aud1'),
       auditoria2:   fmtAud(rd,'aud2'),
@@ -3183,18 +3206,18 @@ function pushOperadores(){
 function togglePresente(esc){
   const rd=getRowData(esc);
   rd.presente=!rd.presente;
-  rd._presenteTs=Date.now(); // timestamp del cambio
-  saveLocal();pushOperadores();renderOpTable();renderContadores();
+  rd._presenteTs=Date.now();
+  saveLocal();pushFila(esc);renderOpTable();renderContadores();
 }
 
 function setPrimerVideo(esc,val){
   getRowData(esc).primerVideo=val.trim();
-  saveLocal();pushOperadores();renderContadores();
+  saveLocal();pushFila(esc);renderContadores();
 }
 
 function setAusencia(esc,val){
   getRowData(esc).ausencia=val;
-  saveLocal();pushOperadores();renderNoAsignados();
+  saveLocal();pushFila(esc);renderNoAsignados();
 }
 
 // Cronómetro de auditoría
@@ -3213,7 +3236,7 @@ function audPause(esc,n){
   if(!rd[key]||!rd[key].running) return;
   rd[key].ms+=(Date.now()-rd[key].t0);
   rd[key].running=false;rd[key].t0=null;
-  saveLocal();pushOperadores();renderOpTable();
+  saveLocal();pushFila(esc);renderOpTable();
 }
 function fmtAud(rd,key){
   if(!rd||!rd[key]) return '0:00';
@@ -3458,7 +3481,7 @@ function setOperadorFila(idx, esc, nombre){
     operadores[idx].operador=nombre;
     operadores[idx].Operador=nombre;
     saveLocal();
-    pushOperadores();
+    pushFila(esc);
   }
   renderContadores();renderNoAsignados();
 }
