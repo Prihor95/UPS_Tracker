@@ -867,7 +867,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ══ CONFIG ══
-const DEFAULT_API = "https://script.google.com/macros/s/AKfycbxbWwMXoxhjTs8B0iZGOr4TrmU9Qji1w86t2LlPUf0gPG4NPmlmzV3ONhxow7EU4tRm/exec";
+const DEFAULT_API = "https://script.google.com/macros/s/AKfycby_LKrU1Zt5e-J9dP6XXfpRh689XSD_QCbuehQMGhxDDX3I6k3gVLLgJQ0a5OslBYJh/exec";
 // URL del data.json en GitHub (lectura pública, sin auth)
 // GitHub añade cache de ~5 min; el ?t= lo rompe para forzar datos frescos
 const DATA_JSON_URL = "https://raw.githubusercontent.com/Prihor95/UPS_Tracker/main/data.json";
@@ -1270,6 +1270,7 @@ async function publicarCroquis(){
     };
     const r=await apiPost(payload);
     if(r&&r.ok){
+      window._layoutTs=Date.now(); // protege contra overwrite del sync por 60s
       lbl.textContent='✓ Publicado · '+ts();
       lbl.style.color='#34A853';
       addLog('Croquis publicado para todos los usuarios');
@@ -1487,11 +1488,14 @@ async function syncFromSheets(silent=false){
       saveLocal();
     }
 
-    // Bajar layout publicado
+    // Bajar layout publicado — proteger si fue editado localmente hace menos de 60s
     if(data.stations&&Object.keys(data.stations).length>0){
-      stations=data.stations;
-      const lbl=document.getElementById('layout-status');
-      if(lbl){lbl.textContent='Layout: '+(data.layout_ts||'servidor');lbl.style.color='#888';}
+      const layoutProtegido=window._layoutTs&&(Date.now()-window._layoutTs)<60000;
+      if(!layoutProtegido){
+        stations=data.stations;
+        const lbl=document.getElementById('layout-status');
+        if(lbl){lbl.textContent='Layout: '+(data.layout_ts||'servidor');lbl.style.color='#888';}
+      }
     }
 
     // Bajar settings compartidos — sin sobreescribir API URL ni assignments
@@ -1528,22 +1532,51 @@ async function syncFromSheets(silent=false){
 }
 
 async function apiPost(body){
+  // Para arrays grandes, dividir en chunks y enviar en paralelo
+  const MAX_ROWS=20;
+  const arrayKey=Object.keys(body).find(k=>Array.isArray(body[k])&&body[k].length>MAX_ROWS);
+  if(arrayKey){
+    const chunks=[];
+    for(let i=0;i<body[arrayKey].length;i+=MAX_ROWS)
+      chunks.push({...body,[arrayKey]:body[arrayKey].slice(i,i+MAX_ROWS)});
+    const results=await Promise.all(chunks.map(c=>apiPost(c)));
+    return results.find(r=>!r.ok)||{ok:true};
+  }
+
+  const json=JSON.stringify(body);
+  const url=settings.api;
+
+  // Intento 1: POST real
   try{
-    // Usa GET con ?payload= para evitar el redirect 302 de Apps Script que rompe POST desde GitHub Pages
-    const url=settings.api+'?payload='+encodeURIComponent(JSON.stringify(body))+'&t='+Date.now();
-    const res=await fetch(url,{redirect:'follow'});
+    const res=await fetch(url,{
+      method:'POST',
+      redirect:'follow',
+      headers:{'Content-Type':'text/plain'}, // text/plain evita preflight CORS
+      body:json
+    });
     const text=await res.text();
     try{
-      const json=JSON.parse(text);
-      if(!json.ok) console.warn('[apiPost] Servidor respondió ok:false →',json,'| action:',body.action);
-      return json;
+      const d=JSON.parse(text);
+      if(!d.ok) console.warn('[apiPost POST] ok:false',d,'action:',body.action);
+      return d;
+    }catch(e){
+      // Apps Script a veces responde HTML en redirect — intentar GET fallback
     }
-    catch(e){
-      console.error('[apiPost] Respuesta no-JSON para action:',body.action,'→',text.slice(0,300));
-      return {ok:false,error:'Respuesta no-JSON: '+text.slice(0,200)};
+  }catch(e){ /* red o CORS — intentar GET */ }
+
+  // Intento 2: GET con ?payload= (fallback para payloads pequeños)
+  try{
+    const encoded=encodeURIComponent(json);
+    if(encoded.length>7000){
+      console.warn('[apiPost] payload demasiado grande para GET:',encoded.length,'bytes, action:',body.action);
+      return {ok:false,error:'payload too large'};
     }
+    const res2=await fetch(url+'?payload='+encoded+'&t='+Date.now(),{redirect:'follow'});
+    const text2=await res2.text();
+    try{return JSON.parse(text2);}
+    catch(e){return {ok:false,error:'Respuesta no-JSON'};}
   }catch(e){
-    console.error('[apiPost] Fetch falló para action:',body.action,'→',e.message);
+    console.error('[apiPost] Falló GET fallback:',e.message,'action:',body.action);
     return {ok:false,error:e.message};
   }
 }
