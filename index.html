@@ -1353,6 +1353,17 @@ function setSS(state,msg){
   if(btn) btn.disabled = (state === 'busy');
 }
 
+// ════════════════════════════════════════════════════════════════
+// v6.0 — FIX BUG 1: sincronización al liberar estación entre PCs.
+// Antes: el servidor borraba la fila de EstadoActual al liberar, y este
+// merge ignoraba cualquier entrada sin upe_id ("if(!v||!v.upe_id) return").
+// Resultado: una estación liberada en la PC A nunca llegaba como señal a
+// la PC B — la PC B conservaba su copia local vieja indefinidamente.
+// Ahora: el servidor manda un "tombstone" (upe_id:'' + liberada_ts) en vez
+// de borrar. Este merge detecta tombstones y vacía la estación local si
+// la liberación es más reciente que la asignación que tenía guardada.
+// Requiere UPS.gs v6.0 (columna liberada_ts en EstadoActual/Asignaciones).
+// ════════════════════════════════════════════════════════════════
 async function syncFromSheets(silent=false){
   if(!silent) setSS('busy','Conectando...');
   try{
@@ -1370,14 +1381,39 @@ async function syncFromSheets(silent=false){
     if(!data.ok) throw new Error(data.error||'Error del servidor');
 
     // Asignaciones — gana siempre el timestamp más reciente (local vs servidor)
+    // v6.0 — FIX BUG 1: el servidor ya no borra filas al liberar, en vez de eso
+    // manda un "tombstone" (upe_id:'' + liberada_ts). Antes este bloque ignoraba
+    // por completo cualquier entrada sin upe_id, así que una estación liberada
+    // en otra PC nunca se reflejaba aquí — el bloque final de "conservar lo local"
+    // simplemente revivía la asignación vieja en cada sync.
     if(data.asignaciones){
       const localAsgn=assignments||{};
       const newAsgn={};
 
       // Primero procesar lo que viene del servidor
       Object.entries(data.asignaciones).forEach(([k,v])=>{
-        if(!v||!v.upe_id) return;
+        if(!v) return;
         const local=localAsgn[k];
+        const esTombstone=!v.upe_id && v.liberada_ts;
+
+        if(esTombstone){
+          // El servidor dice: esta estación fue liberada en liberada_ts.
+          // Si la liberación es más reciente que la asignación local, vaciar acá también.
+          const tsLib=(parseTS(v.liberada_ts)||new Date(0)).getTime();
+          const tsLocalAsgn=local?(parseTS(local.timestamp)||new Date(0)).getTime():0;
+          if(!local||!local.upe_id||tsLib>=tsLocalAsgn){
+            // No conservar nada para esta estación — queda libre
+            newAsgn[k]=null;
+          } else {
+            // La asignación local es MÁS reciente que la liberación del servidor
+            // (ej. alguien reasignó justo después) → conservar local
+            newAsgn[k]=local;
+          }
+          return;
+        }
+
+        if(!v.upe_id) return; // entrada vacía sin tombstone — ignorar como antes
+
         const tsServer=(parseTS(v.timestamp)||new Date(0)).getTime();
         const tsLocal=local?(parseTS(local.timestamp)||new Date(0)).getTime():0;
 
@@ -1409,10 +1445,16 @@ async function syncFromSheets(silent=false){
         }
       });
 
-      // Conservar asignaciones locales que el servidor no tenga
+      // Conservar asignaciones locales que el servidor NUNCA mencionó
+      // (ni como activa ni como tombstone) — esto es lo único que sigue
+      // siendo "el servidor no la tiene todavía", a diferencia de antes
+      // donde cualquier entrada faltante se interpretaba así.
       Object.entries(localAsgn).forEach(([k,v])=>{
-        if(!newAsgn[k]&&v&&v.upe_id) newAsgn[k]=v;
+        if(!(k in newAsgn) && v && v.upe_id) newAsgn[k]=v;
       });
+
+      // Limpiar las marcadas explícitamente como null (liberadas)
+      Object.keys(newAsgn).forEach(k=>{ if(newAsgn[k]===null) delete newAsgn[k]; });
 
       assignments=newAsgn;
     }
