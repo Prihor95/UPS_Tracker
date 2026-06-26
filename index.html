@@ -2639,8 +2639,13 @@ async function clearStation(){
   renderMain();renderTable();renderAlertas();renderPromedios();
   setMsg('Liberando...');dis(true);
   try {
-    await apiPost({action:'liberar',estacion:st,pct_fin:pctFin});
-    setMsg('✓ ' + st + ' liberada');
+    const r=await apiPost({action:'liberar',estacion:st,pct_fin:pctFin});
+    if(r&&r.ok===false){
+      setMsg('⚠️ Liberada local, error en servidor: '+(r.error||'desconocido'),true);
+      console.error('[liberarEstacion] Servidor rechazó:',r);
+    } else {
+      setMsg('✓ ' + st + ' liberada');
+    }
   } catch(e) {
     setMsg('⚠️ Liberada local, error en nube: ' + e.message, true);
   } finally {
@@ -2675,7 +2680,13 @@ async function clrById(id){
   delete assignments[id];saveLocal();addLog(id+': liberada');
   if(selSt===id)selSt=null;
   renderMain();renderTable();renderAlertas();renderPromedios();
-  await apiPost({action:'liberar',estacion:id});setSS('ok','Sincronizado · '+ts());
+  const r=await apiPost({action:'liberar',estacion:id});
+  if(r&&r.ok===false){
+    setSS('err','Error liberando '+id+': '+(r.error||'?'));
+    console.error('[clrById] Servidor rechazó:',r);
+  } else {
+    setSS('ok','Sincronizado · '+ts());
+  }
 }
 
 function selGo(id){selSt=id;document.getElementById('inp-st').value=id;sw('croquis',document.getElementById('tab-croquis'));}
