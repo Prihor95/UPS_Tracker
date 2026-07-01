@@ -479,7 +479,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div id="tabla-reporte-wrap">
       <table class="tbl" id="tabla-estado">
-        <thead><tr><th>Estación</th><th>Batería</th><th>% est.</th><th>Cambio est.</th><th></th></tr></thead>
+        <thead><tr><th>Estación</th><th>Máquina</th><th>Batería</th><th>% est.</th><th>Cambio est.</th><th></th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
@@ -867,7 +867,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ══ CONFIG ══
-const DEFAULT_API = "https://script.google.com/macros/s/AKfycbx4o28vANZjcW9ITssX8VGYuj37vygqeFSfVBY_j10gFzKYGv1saWT2ysAOCF0PAkIj/exec";
+const DEFAULT_API = "https://script.google.com/macros/s/AKfycby_LKrU1Zt5e-J9dP6XXfpRh689XSD_QCbuehQMGhxDDX3I6k3gVLLgJQ0a5OslBYJh/exec";
 // URL del data.json en GitHub (lectura pública, sin auth)
 // GitHub añade cache de ~5 min; el ?t= lo rompe para forzar datos frescos
 const DATA_JSON_URL = "https://raw.githubusercontent.com/Prihor95/UPS_Tracker/main/data.json";
@@ -2672,14 +2672,26 @@ async function clearStation(){
 // ══ TABLA ══
 function renderTable(){
   const tb=document.getElementById('tbody');tb.innerHTML='';
+  // Mapa escenario → máquina desde la tabla de operadores
+  const maqPorEsc={};
+  (operadores||[]).forEach(op=>{
+    const esc=normEsc(getVal(op,['escenario','Escenario']));
+    const maq=getVal(op,['maquina','Maquina']);
+    if(esc&&maq) maqPorEsc[esc]=maq;
+  });
   Object.keys(stations).sort().forEach(id=>{
     const asgn=assignments[id];
     const u=asgn&&asgn.upe_id?asgn.upe_id:null;
     const pct=u?estimarPorcentaje(id):null;
     const hora=u?estimarHoraCambio(id):null;
     const pctColor=pct===null?'#888':pct<=settings.alerta?'#EA4335':pct<=40?'#FBBC04':'#34A853';
+    const maq=maqPorEsc[id];
+    const maqCell=maq
+      ?`<span style="display:inline-block;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:600;background:#E6F4EA;color:#137333">${maq}</span>`
+      :'<span style="color:#CCC">—</span>';
     const tr=document.createElement('tr');
     tr.innerHTML=`<td style="font-weight:500">${id}</td>
+      <td>${maqCell}</td>
       <td>${u||'<span style="color:#AAA">—</span>'}</td>
       <td style="color:${pctColor};font-weight:600">${pct!==null?Math.round(pct)+'%':'—'}</td>
       <td style="font-size:12px">${hora?'<span style="color:#1A73E8">~'+hora+'</span>':'—'}</td>
