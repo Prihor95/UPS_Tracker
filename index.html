@@ -306,7 +306,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <input class="ainp" id="op-filter" placeholder="🔍 Filtrar..." oninput="renderOpTable()" style="width:130px"/>
-      <select class="ainp" id="op-turno-filter" style="font-size:11px;height:28px" onchange="renderOpTable()">
+      <select class="ainp" id="op-turno-filter" style="font-size:11px;height:28px" onchange="filtroTurnoActivo=this.value;saveLocal();renderOpTable()">
         <option value="">Todos los turnos</option>
         <option value="mañana">☀️ Mañana</option>
         <option value="tarde">🌤 Tarde</option>
@@ -867,7 +867,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 // ══ CONFIG ══
-const DEFAULT_API = "https://script.google.com/macros/s/AKfycbxbWwMXoxhjTs8B0iZGOr4TrmU9Qji1w86t2LlPUf0gPG4NPmlmzV3ONhxow7EU4tRm/exec";
+const DEFAULT_API = "https://script.google.com/macros/s/AKfycby_LKrU1Zt5e-J9dP6XXfpRh689XSD_QCbuehQMGhxDDX3I6k3gVLLgJQ0a5OslBYJh/exec";
 // URL del data.json en GitHub (lectura pública, sin auth)
 // GitHub añade cache de ~5 min; el ?t= lo rompe para forzar datos frescos
 const DATA_JSON_URL = "https://raw.githubusercontent.com/Prihor95/UPS_Tracker/main/data.json";
@@ -877,9 +877,11 @@ const DATA_JSON_URL = "https://raw.githubusercontent.com/Prihor95/UPS_Tracker/ma
 let stations={}, assignments={}, inventory={c:[],d:[]}, log=[], bgUrl=null, promedios={};
 let disabledStations=new Set();
 let operadores=[], cambiosBat=[];
-// Datos extra por escenario: presencia, primer video, auditorías, ausencia
-// { [esc]: {presente:bool, primerVideo:'HH:MM', aud1:null|{ms,running,t0}, aud2:null|{ms,running,t0}, ausencia:''} }
+// Datos extra por escenario: presencia, primer video, auditorías, ausencia, break
+// { [esc]: {presente:bool, primerVideo:'HH:MM', aud1, aud2, ausencia, breakActivo, _breakTs, _presenteTs} }
 let opRowData={};
+// Filtros activos de la pestaña Operación (persistidos en localStorage)
+let filtroFechaActivo='actual', filtroTurnoActivo='';
 let maquinas=[];         // catálogo: ['MA-28','MA-23',...]
 let stationMachines={};  // {J14:'MA-28', J22:'MA-23', ...}
 let settings={
@@ -1119,6 +1121,11 @@ function loadLocal(){
   try{stationMachines=JSON.parse(localStorage.getItem('upe_stmach')||'{}');}catch(e){}
   try{opRowData=JSON.parse(localStorage.getItem('upe_rowdata')||'{}');}catch(e){}
   try{
+    const f=JSON.parse(localStorage.getItem('upe_filtros')||'{}');
+    filtroFechaActivo=f.fecha||'actual';
+    filtroTurnoActivo=f.turno||'';
+  }catch(e){}
+  try{
     const s=JSON.parse(localStorage.getItem('upe_settings')||'{}');
     settings={...settings,...s};
     // Si el localStorage guardó una URL vacía o la URL vieja, restaurar el default
@@ -1144,6 +1151,7 @@ function saveLocal(){
     localStorage.setItem('upe_disabled',JSON.stringify([...disabledStations]));
     localStorage.setItem('upe_cambios',JSON.stringify(cambiosBat));
     localStorage.setItem('upe_rowdata',JSON.stringify(opRowData));
+    localStorage.setItem('upe_filtros',JSON.stringify({fecha:filtroFechaActivo,turno:filtroTurnoActivo}));
     localStorage.setItem('upe_operadores',JSON.stringify(operadores));
     localStorage.setItem('upe_maquinas',JSON.stringify(maquinas));
     localStorage.setItem('upe_stmach',JSON.stringify(stationMachines));
@@ -1353,17 +1361,6 @@ function setSS(state,msg){
   if(btn) btn.disabled = (state === 'busy');
 }
 
-// ════════════════════════════════════════════════════════════════
-// v6.0 — FIX BUG 1: sincronización al liberar estación entre PCs.
-// Antes: el servidor borraba la fila de EstadoActual al liberar, y este
-// merge ignoraba cualquier entrada sin upe_id ("if(!v||!v.upe_id) return").
-// Resultado: una estación liberada en la PC A nunca llegaba como señal a
-// la PC B — la PC B conservaba su copia local vieja indefinidamente.
-// Ahora: el servidor manda un "tombstone" (upe_id:'' + liberada_ts) en vez
-// de borrar. Este merge detecta tombstones y vacía la estación local si
-// la liberación es más reciente que la asignación que tenía guardada.
-// Requiere UPS.gs v6.0 (columna liberada_ts en EstadoActual/Asignaciones).
-// ════════════════════════════════════════════════════════════════
 async function syncFromSheets(silent=false){
   if(!silent) setSS('busy','Conectando...');
   try{
@@ -1381,39 +1378,22 @@ async function syncFromSheets(silent=false){
     if(!data.ok) throw new Error(data.error||'Error del servidor');
 
     // Asignaciones — gana siempre el timestamp más reciente (local vs servidor)
-    // v6.0 — FIX BUG 1: el servidor ya no borra filas al liberar, en vez de eso
-    // manda un "tombstone" (upe_id:'' + liberada_ts). Antes este bloque ignoraba
-    // por completo cualquier entrada sin upe_id, así que una estación liberada
-    // en otra PC nunca se reflejaba aquí — el bloque final de "conservar lo local"
-    // simplemente revivía la asignación vieja en cada sync.
     if(data.asignaciones){
       const localAsgn=assignments||{};
       const newAsgn={};
+      // Set de estaciones que el servidor marcó como liberadas (tombstones) con su timestamp
+      const tombstones={};
 
       // Primero procesar lo que viene del servidor
       Object.entries(data.asignaciones).forEach(([k,v])=>{
         if(!v) return;
-        const local=localAsgn[k];
-        const esTombstone=!v.upe_id && v.liberada_ts;
-
-        if(esTombstone){
-          // El servidor dice: esta estación fue liberada en liberada_ts.
-          // Si la liberación es más reciente que la asignación local, vaciar acá también.
-          const tsLib=(parseTS(v.liberada_ts)||new Date(0)).getTime();
-          const tsLocalAsgn=local?(parseTS(local.timestamp)||new Date(0)).getTime():0;
-          if(!local||!local.upe_id||tsLib>=tsLocalAsgn){
-            // No conservar nada para esta estación — queda libre
-            newAsgn[k]=null;
-          } else {
-            // La asignación local es MÁS reciente que la liberación del servidor
-            // (ej. alguien reasignó justo después) → conservar local
-            newAsgn[k]=local;
-          }
+        // Tombstone del servidor: upe_id vacío pero _liberada_ts presente
+        if(!v.upe_id && v._liberada_ts){
+          tombstones[k]=(parseTS(v._liberada_ts)||new Date(0)).getTime();
           return;
         }
-
-        if(!v.upe_id) return; // entrada vacía sin tombstone — ignorar como antes
-
+        if(!v.upe_id) return;
+        const local=localAsgn[k];
         const tsServer=(parseTS(v.timestamp)||new Date(0)).getTime();
         const tsLocal=local?(parseTS(local.timestamp)||new Date(0)).getTime():0;
 
@@ -1445,16 +1425,24 @@ async function syncFromSheets(silent=false){
         }
       });
 
-      // Conservar asignaciones locales que el servidor NUNCA mencionó
-      // (ni como activa ni como tombstone) — esto es lo único que sigue
-      // siendo "el servidor no la tiene todavía", a diferencia de antes
-      // donde cualquier entrada faltante se interpretaba así.
-      Object.entries(localAsgn).forEach(([k,v])=>{
-        if(!(k in newAsgn) && v && v.upe_id) newAsgn[k]=v;
+      // Aplicar tombstones: si el servidor liberó y su ts es más nuevo que el local, borrar local
+      Object.entries(tombstones).forEach(([k,tsTomb])=>{
+        const local=localAsgn[k];
+        const tsLocal=local?(parseTS(local.timestamp)||new Date(0)).getTime():0;
+        if(tsTomb>=tsLocal){
+          // El servidor liberó después del cambio local → aplicar la liberación
+          delete newAsgn[k];
+        } else if(local&&local.upe_id){
+          // La asignación local es más nueva que el tombstone (reasignación local) → conservar
+          newAsgn[k]=local;
+        }
       });
 
-      // Limpiar las marcadas explícitamente como null (liberadas)
-      Object.keys(newAsgn).forEach(k=>{ if(newAsgn[k]===null) delete newAsgn[k]; });
+      // Conservar asignaciones locales que el servidor no tenga en absoluto (ni fila ni tombstone)
+      Object.entries(localAsgn).forEach(([k,v])=>{
+        if(!newAsgn[k]&&v&&v.upe_id&&!(k in data.asignaciones)&&!(k in tombstones))
+          newAsgn[k]=v;
+      });
 
       assignments=newAsgn;
     }
@@ -1497,6 +1485,36 @@ async function syncFromSheets(silent=false){
         }
         if(!rd.primerVideo&&serverOp.primer_video) rd.primerVideo=serverOp.primer_video;
         if(!rd.ausencia&&serverOp.ausencia) rd.ausencia=serverOp.ausencia;
+
+        // Break: sincronizar con misma lógica de 60s de gracia que presente
+        const serverBreakVal=String(serverOp.break_activo||'').trim();
+        const serverBreakTs=parseInt(serverOp.break_ts||0);
+        const localBreakTs=rd._breakTs||0;
+        if(localBreakTs>0&&(ahoraMs-localBreakTs)<60000){
+          // cambio reciente local — conservar
+        } else if(localBreakTs>0||serverBreakTs>0){
+          // Gana el más reciente
+          if(serverBreakTs>localBreakTs){
+            if(serverBreakVal){
+              // Reconstruir breakActivo desde el servidor si aún no está o si el label difiere
+              if(!rd.breakActivo||sanitizeHora(rd.breakActivo.horaInicio)!==serverBreakVal){
+                const tpl=(settings.breakTemplates||[]).find(t=>
+                  sanitizeHora(t.horaInicio)===serverBreakVal||t.label===serverBreakVal);
+                if(tpl){
+                  const[bh,bm]=(sanitizeHora(tpl.horaInicio)||'00:00').split(':').map(Number);
+                  const pausaDate=new Date();pausaDate.setHours(bh,bm,0,0);
+                  const iniciaMs=pausaDate.getTime();
+                  rd.breakActivo={tipo:tpl.id,iniciaMs,finMs:iniciaMs+(tpl.duracion||30)*60000,
+                    duracion:tpl.duracion||30,horaInicio:sanitizeHora(tpl.horaInicio),label:tpl.label};
+                }
+              }
+            } else {
+              rd.breakActivo=null;
+            }
+            rd._breakTs=serverBreakTs;
+          }
+        }
+
         if(!(rd.aud1&&rd.aud1.running)){
           const ms1=parseAudStr(serverOp.auditoria1);
           if(ms1>0&&(!rd.aud1||rd.aud1.ms===0)) rd.aud1={ms:ms1,running:false,t0:null};
@@ -1853,6 +1871,8 @@ async function cargarFechasBitacora(){
 }
 
 async function cargarOperadoresPorFecha(fecha){
+  filtroFechaActivo=fecha||'actual';
+  saveLocal();
   if(fecha==='actual'||!fecha){
     await syncOperadores();
     return;
@@ -2639,13 +2659,8 @@ async function clearStation(){
   renderMain();renderTable();renderAlertas();renderPromedios();
   setMsg('Liberando...');dis(true);
   try {
-    const r=await apiPost({action:'liberar',estacion:st,pct_fin:pctFin});
-    if(r&&r.ok===false){
-      setMsg('⚠️ Liberada local, error en servidor: '+(r.error||'desconocido'),true);
-      console.error('[liberarEstacion] Servidor rechazó:',r);
-    } else {
-      setMsg('✓ ' + st + ' liberada');
-    }
+    await apiPost({action:'liberar',estacion:st,pct_fin:pctFin});
+    setMsg('✓ ' + st + ' liberada');
   } catch(e) {
     setMsg('⚠️ Liberada local, error en nube: ' + e.message, true);
   } finally {
@@ -2680,13 +2695,7 @@ async function clrById(id){
   delete assignments[id];saveLocal();addLog(id+': liberada');
   if(selSt===id)selSt=null;
   renderMain();renderTable();renderAlertas();renderPromedios();
-  const r=await apiPost({action:'liberar',estacion:id});
-  if(r&&r.ok===false){
-    setSS('err','Error liberando '+id+': '+(r.error||'?'));
-    console.error('[clrById] Servidor rechazó:',r);
-  } else {
-    setSS('ok','Sincronizado · '+ts());
-  }
+  await apiPost({action:'liberar',estacion:id});setSS('ok','Sincronizado · '+ts());
 }
 
 function selGo(id){selSt=id;document.getElementById('inp-st').value=id;sw('croquis',document.getElementById('tab-croquis'));}
@@ -3202,6 +3211,15 @@ let opEditIdx=null;
 function syncOperadores(){
   const lbl=document.getElementById('op-sync-lbl');
   const dot=document.getElementById('op-sdot');
+
+  // Si el filtro está en una fecha pasada, no sincronizar con el estado actual de Sheets
+  // (eso reemplazaría lo que está viendo el usuario)
+  if(filtroFechaActivo&&filtroFechaActivo!=='actual'){
+    // Recargar la bitácora de esa fecha en su lugar
+    cargarOperadoresPorFecha(filtroFechaActivo);
+    return;
+  }
+
   if(lbl)lbl.textContent='Cargando desde Sheets...';
   if(dot){dot.style.background='#FBBC04';dot.style.animation='blink .7s infinite alternate';}
   fetch(settings.api+'?action=operadores&t='+Date.now(),{redirect:'follow'})
@@ -3214,10 +3232,11 @@ function syncOperadores(){
         if(lbl)lbl.textContent='Actualizado · '+ts();
         if(dot){dot.style.background='#34A853';dot.style.animation='';}
         renderOpTable();
-        // Resetear selector al "actual"
+        // Restaurar selectores con el filtro persistido (NO forzar 'actual')
         const sel=document.getElementById('op-fecha-sel');
-        if(sel) sel.value='actual';
-        // Cargar fechas disponibles en bitácora en background
+        if(sel) sel.value=filtroFechaActivo||'actual';
+        const selT=document.getElementById('op-turno-filter');
+        if(selT) selT.value=filtroTurnoActivo||'';
         cargarFechasBitacora();
       } else {
         if(lbl)lbl.textContent='Sin datos en hoja Operadores';
@@ -3245,9 +3264,8 @@ function pushFila(esc){
   const op=(operadores||[]).find(o=>normEsc(getVal(o,['escenario','Escenario']))===esc);
   if(!op) return;
   const rd=getRowData(esc);
-  const asgn=assignments[esc];
-  const dt=asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
-  const breakHora=dt?((settings.breakTemplates||[]).find(t=>t.id===dt.tipo)||{}).horaInicio||'':'';
+  const brk=rd.breakActivo;
+  const breakVal=brk?(sanitizeHora(brk.horaInicio)||brk.label||''):'';
   const fila={
     _ts:        Date.now(),
     maquina:    getVal(op,['maquina','Maquina'])||'',
@@ -3256,7 +3274,8 @@ function pushFila(esc){
     turno:      getVal(op,['turno','Turno'])||'',
     presente:   rd.presente?'true':'false',
     presente_ts: rd._presenteTs||'',
-    break_activo: sanitizeHora(breakHora)||'',
+    break_activo: breakVal,
+    break_ts:   rd._breakTs||'',
     primer_video: rd.primerVideo||'',
     auditoria1:   fmtAud(rd,'aud1'),
     auditoria2:   fmtAud(rd,'aud2'),
@@ -3271,9 +3290,8 @@ function pushOperadores(){
   const filas=(operadores||[]).map(op=>{
     const esc=normEsc(getVal(op,['escenario','Escenario']));
     const rd=getRowData(esc);
-    const asgn=assignments[esc];
-    const dt=asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
-    const breakHora=dt?sanitizeHora(((settings.breakTemplates||[]).find(t=>t.id===dt.tipo)||{}).horaInicio||'')||'':'';
+    const brk=rd.breakActivo;
+    const breakVal=brk?(sanitizeHora(brk.horaInicio)||brk.label||''):'';
     return {
       _ts:         now,
       maquina:     getVal(op,['maquina','Maquina'])||'',
@@ -3282,7 +3300,8 @@ function pushOperadores(){
       turno:       getVal(op,['turno','Turno'])||'',
       presente:    rd.presente?'true':'false',
       presente_ts: rd._presenteTs||'',
-      break_activo: breakHora,
+      break_activo: breakVal,
+      break_ts:    rd._breakTs||'',
       primer_video: rd.primerVideo||'',
       auditoria1:   fmtAud(rd,'aud1'),
       auditoria2:   fmtAud(rd,'aud2'),
@@ -3480,10 +3499,10 @@ function renderOpTable(){
     if(!brkTurno.length){
       breakCell='<span style="color:#CCC;font-size:11px">—</span>';
     } else {
-      const activeBreakDT=(asgn&&(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak));
-      if(activeBreakDT){
-        const tpl=allBrk.find(t=>t.id===activeBreakDT.tipo)||{label:activeBreakDT.tipo,horaInicio:''};
-        const horaBreak=sanitizeHora(tpl.horaInicio)||tpl.label;
+      // Fuente de verdad: opRowData[esc].breakActivo (dato propio, no derivado)
+      const brkAct=rd.breakActivo;
+      if(brkAct){
+        const horaBreak=sanitizeHora(brkAct.horaInicio)||brkAct.label||'break';
         breakCell=`<div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:11px;font-weight:600;color:#555;font-variant-numeric:tabular-nums">☕ ${horaBreak}</span>
           <button class="bsm" style="font-size:10px;padding:1px 5px;color:#137333;border-color:#34A853"
@@ -3659,37 +3678,50 @@ async function guardarFilaOp(){
 function iniciarBreak(estacion, tipo){
   const tpl=(settings.breakTemplates||[]).find(t=>t.id===tipo);
   if(!tpl) return;
-  if(!assignments[estacion]) assignments[estacion]={};
-  if(!assignments[estacion]._downtimes) assignments[estacion]._downtimes=[];
-  // Terminar break previo si existe
-  const prev=assignments[estacion]._downtimes.find(d=>!d.fin&&d._esBreak);
-  if(prev){ prev.fin=tsISO(); }
 
-  // La pausa de batería inicia a la hora configurada del break
-  // Si esa hora ya pasó (o no hay hora), inicia ahora
+  // Calcular hora de inicio de la pausa (según hora configurada del break)
   const horaConf=sanitizeHora(tpl.horaInicio);
-  let pausaInicio;
+  let iniciaMs;
   if(horaConf){
     const[bh,bm]=horaConf.split(':').map(Number);
     const ahora=new Date();
     const pausaDate=new Date(ahora);
     pausaDate.setHours(bh,bm,0,0);
-    pausaInicio=pausaDate<=ahora?tsISO():pausaDate.toISOString();
+    iniciaMs=pausaDate<=ahora?Date.now():pausaDate.getTime();
   } else {
-    pausaInicio=tsISO();
+    iniciaMs=Date.now();
+  }
+  const dur=tpl.duracion||30;
+  const finMs=iniciaMs+dur*60000;
+
+  // Guardar break en opRowData (dato propio, con timestamp de cambio)
+  const rd=getRowData(estacion);
+  rd.breakActivo={
+    tipo, iniciaMs, finMs, duracion:dur,
+    horaInicio:horaConf||'', label:tpl.label
+  };
+  rd._breakTs=Date.now(); // timestamp del cambio para el merge del sync
+
+  // También registrar en _downtimes para que el cálculo de % de batería lo descuente
+  if(assignments[estacion]){
+    if(!assignments[estacion]._downtimes) assignments[estacion]._downtimes=[];
+    const prev=assignments[estacion]._downtimes.find(d=>!d.fin&&d._esBreak);
+    if(prev) prev.fin=tsISO();
+    assignments[estacion]._downtimes.push({
+      tipo, inicio:new Date(iniciaMs).toISOString(), fin:null,
+      _tsStart:iniciaMs, _esBreak:true, _duracion:dur, _horaBreak:horaConf||''
+    });
   }
 
-  const dur=tpl.duracion||30;
-  assignments[estacion]._downtimes.push({
-    tipo, inicio:pausaInicio, fin:null,
-    _tsStart:new Date(pausaInicio).getTime(),
-    _esBreak:true, _duracion:dur, _horaBreak:horaConf||''
-  });
   saveLocal();
   addLog(estacion+': break asignado — '+tpl.label+(horaConf?' (pausa a las '+horaConf+')':''));
-  const msHastaFin=Math.max(0,(new Date(pausaInicio).getTime()+dur*60000)-Date.now());
-  setTimeout(()=>autoTerminarBreak(estacion,pausaInicio), msHastaFin);
-  if(assignments[estacion].upe_id){
+  const msHastaFin=Math.max(0, finMs-Date.now());
+  setTimeout(()=>autoTerminarBreak(estacion, iniciaMs), msHastaFin);
+
+  // Sync con Sheets (fila del operador incluye break)
+  pushFila(estacion);
+  // Si hay batería, también actualizar la asignación con el downtime
+  if(assignments[estacion]&&assignments[estacion].upe_id){
     apiPost({action:'asignar_forzado',
       estacion, upe_id:assignments[estacion].upe_id,
       timestamp:assignments[estacion].timestamp,
@@ -3701,34 +3733,38 @@ function iniciarBreak(estacion, tipo){
       _downtimes:assignments[estacion]._downtimes||[]
     }).catch(()=>{});
   }
-  pushOperadores();
   renderOpTable();renderMain();renderAlertas();
 }
 
 function cambiarBreak(estacion, nuevoTipo){
-  // Termina el break actual e inicia uno nuevo del tipo seleccionado
   terminarBreak(estacion);
   if(nuevoTipo) iniciarBreak(estacion, nuevoTipo);
 }
 
-function autoTerminarBreak(estacion, inicioTs){
-  // Solo terminar si el break activo sigue siendo el mismo que se programó
-  if(!assignments[estacion]||!assignments[estacion]._downtimes) return;
-  const dt=assignments[estacion]._downtimes.find(d=>!d.fin&&d._esBreak&&d.inicio===inicioTs);
-  if(!dt) return; // ya fue terminado manualmente
+function autoTerminarBreak(estacion, iniciaMs){
+  const rd=opRowData[estacion];
+  if(!rd||!rd.breakActivo) return;
+  if(rd.breakActivo.iniciaMs!==iniciaMs) return; // ya fue reemplazado
   terminarBreak(estacion);
 }
 
 function terminarBreak(estacion){
-  if(!assignments[estacion]||!assignments[estacion]._downtimes) return;
-  const dt=assignments[estacion]._downtimes.find(d=>!d.fin&&d._esBreak);
-  if(!dt) return;
-  dt.fin=tsISO();
-  const durMin=Math.round((parseTS(dt.fin)-parseTS(dt.inicio))/60000);
-  const tpl=(settings.breakTemplates||[]).find(t=>t.id===dt.tipo)||{label:dt.tipo};
+  const rd=opRowData[estacion];
+  if(!rd||!rd.breakActivo) return;
+  const label=rd.breakActivo.label||'break';
+  rd.breakActivo=null;
+  rd._breakTs=Date.now();
+
+  // Cerrar el downtime asociado si existe
+  if(assignments[estacion]&&assignments[estacion]._downtimes){
+    const dt=assignments[estacion]._downtimes.find(d=>!d.fin&&d._esBreak);
+    if(dt) dt.fin=tsISO();
+  }
+
   saveLocal();
-  addLog(estacion+': break terminado — '+tpl.label+' ('+durMin+' min)');
-  if(assignments[estacion].upe_id){
+  addLog(estacion+': break terminado — '+label);
+  pushFila(estacion);
+  if(assignments[estacion]&&assignments[estacion].upe_id){
     apiPost({action:'asignar_forzado',
       estacion, upe_id:assignments[estacion].upe_id,
       timestamp:assignments[estacion].timestamp,
@@ -3744,9 +3780,24 @@ function terminarBreak(estacion){
 }
 
 async function generarReporteOp(){
-  const turnoFiltro=((document.getElementById('op-turno-filter')||{}).value||'');
-  const fecha=new Date().toISOString().slice(0,10);
+  const turnoFiltro=((document.getElementById('op-turno-filter')||{}).value||filtroTurnoActivo||'');
+  // Bug 4: usar fecha del filtro, no siempre hoy
+  const fechaSel=((document.getElementById('op-fecha-sel')||{}).value||filtroFechaActivo||'actual');
+  const fecha=fechaSel==='actual'?new Date().toISOString().slice(0,10):fechaSel;
   const hora=new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+
+  // Bug 5: chequear si ya existe reporte para esa fecha+turno antes de sobreescribir
+  try{
+    const chk=await fetch(settings.api+'?action=existe_reporte&fecha='+encodeURIComponent(fecha)+
+      '&turno='+encodeURIComponent(turnoFiltro||'todos')+'&t='+Date.now(),{redirect:'follow'});
+    const chkData=await chk.json();
+    if(chkData&&chkData.existe){
+      const ok=confirm('⚠️ Ya existe un reporte guardado para '+fecha+
+        (turnoFiltro?' · turno '+turnoFiltro:'')+
+        '.\n\nSi continúas, se SOBREESCRIBIRÁN los datos anteriores.\n\n¿Continuar?');
+      if(!ok) return;
+    }
+  }catch(e){ /* si falla el chequeo seguimos igual */ }
 
   const filas=(operadores||[])
     .filter(op=>!turnoFiltro||(getVal(op,['turno','Turno'])||'').toLowerCase()===turnoFiltro)
@@ -3754,8 +3805,8 @@ async function generarReporteOp(){
       const esc=normEsc(getVal(op,['escenario','Escenario']));
       const rd=getRowData(esc);
       const asgn=assignments[esc]||{};
-      const breakActivo=(asgn._downtimes||[]).find(d=>!d.fin&&d._esBreak);
-      const breakNombre=breakActivo?((settings.breakTemplates||[]).find(t=>t.id===breakActivo.tipo)||{label:breakActivo.tipo}).label:'';
+      // Bug 2: leer break directamente de opRowData, no derivar de _downtimes
+      const breakNombre=rd.breakActivo?(rd.breakActivo.label||''):'';
       return {
         fecha, hora, turno:getVal(op,['turno','Turno'])||'',
         maquina:getVal(op,['maquina','Maquina'])||'',
@@ -3972,6 +4023,9 @@ document.addEventListener('DOMContentLoaded', function(){
     if(typeof onLocoChange==='function')onLocoChange();
     renderBreakTemplates();
     renderFestivos();
+    // Restaurar filtros persistidos en la UI
+    const selTurnoInit=document.getElementById('op-turno-filter');
+    if(selTurnoInit) selTurnoInit.value=filtroTurnoActivo||'';
     setSS('ok','Datos locales cargados');
     syncListaOperadores();
     if(bgUrl){
